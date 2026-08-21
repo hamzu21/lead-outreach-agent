@@ -30,11 +30,23 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Setup Credentials & Token Files
+        env:
+          GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+          GOOGLE_TOKEN_JSON: ${{ secrets.GOOGLE_TOKEN_JSON }}
+        run: |
+          if [ -n "$GOOGLE_CREDENTIALS_JSON" ]; then
+            echo "$GOOGLE_CREDENTIALS_JSON" > credentials.json
+            echo "Created credentials.json"
+          fi
+          if [ -n "$GOOGLE_TOKEN_JSON" ]; then
+            echo "$GOOGLE_TOKEN_JSON" > token.json
+            echo "Created token.json"
+          fi
+
       - name: Execute Lead Outreach Agent
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
-          GOOGLE_TOKEN_JSON: ${{ secrets.GOOGLE_TOKEN_JSON }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
         run: |
           LIMIT="${{ github.event.inputs.limit || '10' }}"
@@ -46,4 +58,5 @@ jobs:
         with:
           name: lead-outreach-log
           path: lead_outreach_log.xlsx
+          if-no-files-found: ignore
           retention-days: 30
