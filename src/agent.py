@@ -55,41 +55,46 @@ class LeadOutreachAgent:
 
             print(f"\n[{idx}] Processing Lead: {business_name} | {email}")
 
-            # 1. Perform Web Audit
-            website_url = status if "http" in status else None
-            audit = inspect_website(website_url)
+            try:
+                # 1. Perform Web Audit
+                website_url = status if "http" in status else None
+                audit = inspect_website(website_url)
 
-            lead_info = {
-                "name": business_name,
-                "location": location,
-                "industry": industry,
-                "phone": phone,
-                "email": email,
-                "social_link": social,
-                "website_status": status
-            }
+                lead_info = {
+                    "name": business_name,
+                    "location": location,
+                    "industry": industry,
+                    "phone": phone,
+                    "email": email,
+                    "social_link": social,
+                    "website_status": status
+                }
 
-            # 2. Generate Personalized Email via Gemini AI
-            content = analyze_and_draft_email(lead_info, audit)
+                # 2. Generate Personalized Email via Gemini AI
+                content = analyze_and_draft_email(lead_info, audit)
 
-            # 3. Create Draft in Gmail
-            draft_id = create_gmail_draft(self.gmail_service, email, content["subject"], content["body"])
-            print(f"-> Draft created successfully in Gmail (ID: {draft_id})")
+                # 3. Create Draft in Gmail
+                draft_id = create_gmail_draft(self.gmail_service, email, content["subject"], content["body"])
+                print(f"-> Draft created successfully in Gmail (ID: {draft_id})")
 
-            # 4. Generate 1-Click Free WhatsApp Action Link
-            whatsapp_link = generate_whatsapp_link(phone, business_name, location)
-            if whatsapp_link != "N/A":
-                print(f"-> Generated 1-Click WhatsApp Action Link: {whatsapp_link[:60]}...")
-            else:
-                print("-> No valid phone number for WhatsApp action link.")
+                # 4. Generate 1-Click Free WhatsApp Action Link
+                whatsapp_link = generate_whatsapp_link(phone, business_name, location)
+                if whatsapp_link != "N/A":
+                    print(f"-> Generated 1-Click WhatsApp Action Link: {whatsapp_link[:60]}...")
+                else:
+                    print("-> No valid phone number for WhatsApp action link.")
 
-            # 5. Update Google Sheet (Columns I & J) & Local Excel Log
-            update_google_sheet_status(self.sheets_service, idx, draft_id, whatsapp_link)
-            update_local_excel(business_name, email, location, industry, draft_id, content["subject"], whatsapp_link)
-            print(f"-> Updated Google Sheet (Columns I & J) & Local Excel Log ({LOCAL_EXCEL_PATH})")
+                # 5. Update Google Sheet (Columns I & J) & Local Excel Log
+                update_google_sheet_status(self.sheets_service, idx, draft_id, whatsapp_link)
+                update_local_excel(business_name, email, location, industry, draft_id, content["subject"], whatsapp_link)
+                print(f"-> Updated Google Sheet (Columns I & J) & Local Excel Log ({LOCAL_EXCEL_PATH})")
 
-            processed_count += 1
-            time.sleep(1)  # Rate limiting pause
+                processed_count += 1
+                time.sleep(1)  # Rate limiting pause
+            except Exception as e:
+                print(f"-> Warning: Failed to process lead {business_name} ({email}): {e}. Continuing with next lead...")
+                time.sleep(2)
+                continue
 
         print(f"\nFinished processing batch. Total drafts created: {processed_count}")
 
