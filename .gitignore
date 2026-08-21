@@ -1,27 +1,44 @@
-# Environment & Secret files
+# Secret Credentials & Environment Variables
 .env
+.env.*
 credentials.json
 token.json
 
-# Virtual Environment
+# Virtual Environments
 venv/
 ENV/
 env/
+.venv/
 
 # Python Cache & Bytecode
 __pycache__/
+*/__pycache__/
+*/*/__pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
 *.so
 
-# Generated Logs & Local Excel Files
+# Generated Logs, Reports & Excel Output
 lead_outreach_log.xlsx
+*.xlsx
+*.xls
+*.csv
 *.log
 
-# IDE & OS Files
+# Build & Package Artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# IDE, Editor & OS Metadata
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 .DS_Store
 Thumbs.db
+desktop.ini
