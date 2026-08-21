@@ -1,8 +1,9 @@
 import os
+import json
 import base64
 from email.message import EmailMessage
 from src.config import SENDER_NAME, SENDER_PORTFOLIO, SENDER_PHONE
-from src.services.ai_generator import get_ai_client, AI_MODEL_NAME
+from src.services.ai_generator import generate_ai_content
 
 def generate_cover_letter_pitch(job_title: str, company: str, tech_stack: str, job_desc: str) -> dict:
     """
@@ -37,14 +38,8 @@ Output Format (strict JSON):
   "body": "Cover letter body text"
 }}
 """
-    client = get_ai_client()
-    res = client.models.generate_content(
-        model=AI_MODEL_NAME,
-        contents=prompt,
-        config={"response_mime_type": "application/json"}
-    )
-    import json
-    return json.loads(res.text)
+    raw_res = generate_ai_content(prompt, response_mime_type="application/json")
+    return json.loads(raw_res)
 
 def draft_job_application(gmail_service, to_email: str, subject: str, body_text: str, pdf_path: str = "Muhammad_Hamza_CV.pdf") -> str:
     """

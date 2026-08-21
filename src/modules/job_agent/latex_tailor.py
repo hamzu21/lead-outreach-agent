@@ -2,11 +2,7 @@ import os
 import json
 import shutil
 import subprocess
-from google import genai
-from src.config import GEMINI_API_KEY, AI_MODEL_NAME
-
-def get_ai_client():
-    return genai.Client(api_key=GEMINI_API_KEY)
+from src.services.ai_generator import generate_ai_content
 
 def load_master_tex() -> str:
     tex_path = "resume.tex"
@@ -47,19 +43,14 @@ Master LaTeX Source Code:
 ```
 
 Instructions:
-1. Retain all valid LaTeX document structure, preamble, packages, and center header (Muhammad Hamza, Location: Pakistan, Email, Phone, Portfolio: https://mrhamza.dev).
-2. Tailor the "Professional Summary" section to specifically target the {job_title} role at {company}, emphasizing {tech_stack}.
+1. Retain all valid LaTeX document structure, preamble, packages, macros, and center header (Muhammad Hamza, Location: Pakistan, Email, Phone, Portfolio: https://www.mrhamza.dev).
+2. Tailor the "Profile Summary" section to specifically target the {job_title} role at {company}, emphasizing {tech_stack}.
 3. Update the "Technical Skills" section to highlight technologies matching {tech_stack} and job requirements.
 4. Customize work experience bullet points to match keywords from the job description while remaining truthful to candidate profile.
-5. Return ONLY the raw valid LaTeX code without markdown block fences or commentary.
+5. Return ONLY raw valid LaTeX code without markdown block fences or commentary.
 """
-    client = get_ai_client()
-    response = client.models.generate_content(
-        model=AI_MODEL_NAME,
-        contents=prompt
-    )
+    clean_code = generate_ai_content(prompt)
 
-    clean_code = response.text.strip()
     if clean_code.startswith("```latex"):
         clean_code = clean_code[8:]
     elif clean_code.startswith("```"):
@@ -140,16 +131,20 @@ def compile_tex_to_pdf(tex_code: str, output_filename: str = "Muhammad_Hamza_CV.
         story.append(Spacer(1, 8))
         story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#CBD5E0"), spaceAfter=8))
 
-        story.append(Paragraph("<b>PROFESSIONAL SUMMARY</b>", section_style))
+        story.append(Paragraph("<b>PROFILE SUMMARY</b>", section_style))
         story.append(Paragraph(profile.get("summary", ""), body_style))
         story.append(Spacer(1, 6))
 
         story.append(Paragraph("<b>TECHNICAL SKILLS</b>", section_style))
-        skills_str = ", ".join(profile.get("skills", []))
-        story.append(Paragraph(f"<b>Core Technologies:</b> {skills_str}", body_style))
+        skills_dict = profile.get("skills", {})
+        if isinstance(skills_dict, dict):
+            for cat, items in skills_dict.items():
+                story.append(Paragraph(f"<b>{cat}:</b> {', '.join(items)}", body_style))
+        elif isinstance(skills_dict, list):
+            story.append(Paragraph(f"<b>Core Technologies:</b> {', '.join(skills_dict)}", body_style))
         story.append(Spacer(1, 6))
 
-        story.append(Paragraph("<b>PROFESSIONAL EXPERIENCE</b>", section_style))
+        story.append(Paragraph("<b>EXPERIENCE</b>", section_style))
         for exp in profile.get("experience", []):
             story.append(Paragraph(f"<b>{exp.get('role')}</b> — {exp.get('company')} ({exp.get('period')})", body_style))
             for h in exp.get("highlights", []):

@@ -21,11 +21,51 @@ def get_ai_client():
 
 FALLBACK_MODELS = [
     AI_MODEL_NAME,
+    "gemini-2.5-flash",
+    "gemini-1.5-flash",
     "gemini-3.5-flash",
     "gemini-3.5-flash-lite",
-    "gemini-2.5-flash",
     "gemini-flash-latest"
 ]
+
+def generate_ai_content(prompt: str, response_mime_type: str = None) -> str:
+    """
+    Executes a Gemini AI prompt with automatic model fallback and rate limit retry handling.
+    """
+    client = get_ai_client()
+    last_exception = None
+    candidate_models = list(dict.fromkeys(FALLBACK_MODELS))
+
+    config = {}
+    if response_mime_type:
+        config["response_mime_type"] = response_mime_type
+
+    for model_name in candidate_models:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=config if config else None
+            )
+            return response.text.strip()
+        except errors.APIError as e:
+            last_exception = e
+            if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                print(f"Notice: Model {model_name} rate limited (429). Trying fallback model...")
+                time.sleep(2)
+                continue
+            elif "404" in str(e) or "NOT_FOUND" in str(e):
+                print(f"Notice: Model {model_name} not available. Trying fallback model...")
+                continue
+            else:
+                raise e
+        except Exception as e:
+            last_exception = e
+            continue
+
+    if last_exception:
+        raise last_exception
+    raise RuntimeError("Failed to generate content with available Gemini AI models.")
 
 def analyze_and_draft_email(lead_data: dict, web_audit: dict) -> dict:
     """
@@ -65,33 +105,5 @@ Output Format (strict JSON):
   "body": "Plain text body"
 }}
 """
-    client = get_ai_client()
-    last_exception = None
-    candidate_models = list(dict.fromkeys(FALLBACK_MODELS))
-
-    for model_name in candidate_models:
-        try:
-            response = client.models.generate_content(
-                model=model_name,
-                contents=prompt,
-                config={"response_mime_type": "application/json"}
-            )
-            return json.loads(response.text)
-        except errors.APIError as e:
-            last_exception = e
-            if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-                print(f"Notice: Model {model_name} rate limited (429). Trying fallback model...")
-                time.sleep(2)
-                continue
-            elif "404" in str(e) or "NOT_FOUND" in str(e):
-                print(f"Notice: Model {model_name} not available. Trying fallback model...")
-                continue
-            else:
-                raise e
-        except Exception as e:
-            last_exception = e
-            continue
-
-    if last_exception:
-        raise last_exception
-    raise RuntimeError("Failed to generate content with available models.")
+    raw_res = generate_ai_content(prompt, response_mime_type="application/json")
+    return json.loads(raw_res)
