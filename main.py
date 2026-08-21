@@ -1,3 +1,5 @@
+import sys
+import traceback
 import argparse
 from src.agent import run_agent
 
@@ -12,7 +14,12 @@ def main():
     args = parser.parse_args()
 
     print(f"Starting Lead Outreach Agent (Batch Limit: {args.limit})...")
-    run_agent(limit=args.limit)
+    try:
+        run_agent(limit=args.limit)
+    except Exception as e:
+        print(f"\n[ERROR] Lead Outreach Agent failed: {e}", file=sys.stderr)
+        traceback.print_exc()
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

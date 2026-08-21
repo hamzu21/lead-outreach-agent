@@ -36,10 +36,15 @@ def get_google_services():
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             print("Refreshing expired Google OAuth credentials...")
-            creds.refresh(Request())
-            with open(TOKEN_FILE, "w", encoding="utf-8") as token:
-                token.write(creds.to_json())
-        else:
+            try:
+                creds.refresh(Request())
+                with open(TOKEN_FILE, "w", encoding="utf-8") as token:
+                    token.write(creds.to_json())
+            except Exception as e:
+                print(f"Error refreshing Google OAuth token: {e}")
+                creds = None
+        
+        if not creds or not creds.valid:
             if is_ci:
                 raise RuntimeError(
                     "Google OAuth credentials missing or invalid in GitHub Actions! "
