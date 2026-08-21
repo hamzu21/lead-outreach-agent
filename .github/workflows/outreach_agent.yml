@@ -34,19 +34,40 @@ jobs:
         env:
           GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
           GOOGLE_TOKEN_JSON: ${{ secrets.GOOGLE_TOKEN_JSON }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          if [ -n "$GOOGLE_CREDENTIALS_JSON" ]; then
+          HAS_ERRORS=0
+          if [ -z "$GOOGLE_CREDENTIALS_JSON" ]; then
+            echo "::error title=Missing GitHub Secret::GOOGLE_CREDENTIALS_JSON secret is missing or empty in GitHub Settings!"
+            HAS_ERRORS=1
+          else
             echo "$GOOGLE_CREDENTIALS_JSON" > credentials.json
             echo "Created credentials.json"
           fi
-          if [ -n "$GOOGLE_TOKEN_JSON" ]; then
+
+          if [ -z "$GOOGLE_TOKEN_JSON" ]; then
+            echo "::error title=Missing GitHub Secret::GOOGLE_TOKEN_JSON secret is missing or empty in GitHub Settings!"
+            HAS_ERRORS=1
+          else
             echo "$GOOGLE_TOKEN_JSON" > token.json
             echo "Created token.json"
+          fi
+
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "::error title=Missing GitHub Secret::GEMINI_API_KEY secret is missing or empty in GitHub Settings!"
+            HAS_ERRORS=1
+          fi
+
+          if [ $HAS_ERRORS -eq 1 ]; then
+            echo "Please set GEMINI_API_KEY, GOOGLE_CREDENTIALS_JSON, and GOOGLE_TOKEN_JSON under Repo Settings -> Secrets and variables -> Actions."
+            exit 1
           fi
 
       - name: Execute Lead Outreach Agent
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+          GOOGLE_TOKEN_JSON: ${{ secrets.GOOGLE_TOKEN_JSON }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
         run: |
           LIMIT="${{ github.event.inputs.limit || '10' }}"
