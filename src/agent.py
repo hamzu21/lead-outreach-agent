@@ -4,6 +4,7 @@ from src.services.google_auth import get_google_services
 from src.services.web_auditor import inspect_website
 from src.services.ai_generator import analyze_and_draft_email
 from src.services.gmail_service import create_gmail_draft
+from src.services.whatsapp_service import generate_whatsapp_link
 from src.services.storage import (
     ensure_google_sheet_header,
     update_google_sheet_status,
@@ -28,7 +29,7 @@ class LeadOutreachAgent:
         print(f"Fetching lead data from Google Sheet ({SPREADSHEET_ID})...")
         result = self.sheets_service.spreadsheets().values().get(
             spreadsheetId=SPREADSHEET_ID,
-            range=f"{SHEET_NAME}!A2:I"
+            range=f"{SHEET_NAME}!A2:J"
         ).execute()
         rows = result.get("values", [])
 
@@ -75,10 +76,17 @@ class LeadOutreachAgent:
             draft_id = create_gmail_draft(self.gmail_service, email, content["subject"], content["body"])
             print(f"-> Draft created successfully in Gmail (ID: {draft_id})")
 
-            # 4. Update Google Sheet Column I & Local Excel Log
-            update_google_sheet_status(self.sheets_service, idx, draft_id)
-            update_local_excel(business_name, email, location, industry, draft_id, content["subject"])
-            print(f"-> Updated Google Sheet (Column I) & Local Excel Log ({LOCAL_EXCEL_PATH})")
+            # 4. Generate 1-Click Free WhatsApp Action Link
+            whatsapp_link = generate_whatsapp_link(phone, business_name, location)
+            if whatsapp_link != "N/A":
+                print(f"-> Generated 1-Click WhatsApp Action Link: {whatsapp_link[:60]}...")
+            else:
+                print("-> No valid phone number for WhatsApp action link.")
+
+            # 5. Update Google Sheet (Columns I & J) & Local Excel Log
+            update_google_sheet_status(self.sheets_service, idx, draft_id, whatsapp_link)
+            update_local_excel(business_name, email, location, industry, draft_id, content["subject"], whatsapp_link)
+            print(f"-> Updated Google Sheet (Columns I & J) & Local Excel Log ({LOCAL_EXCEL_PATH})")
 
             processed_count += 1
             time.sleep(1)  # Rate limiting pause
