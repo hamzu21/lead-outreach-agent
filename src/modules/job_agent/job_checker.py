@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 def check_job_active_status(job_url: str) -> dict:
     """
     Visits the provided Job URL and checks if the job listing is currently active.
+    Handles login/signup gated pages gracefully for headless 24/7 cloud execution.
     Returns dict: {"is_active": bool, "status_text": str, "description": str}
     """
     if not job_url or not job_url.startswith("http"):
@@ -44,11 +45,22 @@ def check_job_active_status(job_url: str) -> dict:
                     "description": text_content[:2000]
                 }
 
+        # Check for signup / login wall
+        login_keywords = ["sign in to apply", "log in to apply", "create an account to apply", "join to apply"]
+        is_gated = any(kw in lower_text for kw in login_keywords) or "login" in res.url.lower() or "signup" in res.url.lower()
+
+        if is_gated:
+            return {
+                "is_active": True,
+                "status_text": "Active (Signup / Login Required)",
+                "description": text_content[:2500] if len(text_content) > 100 else "Login required portal."
+            }
+
         return {
             "is_active": True,
             "status_text": "Active",
             "description": text_content[:3000]
         }
     except Exception as e:
-        # Fallback to active if network error occurs so manual application can proceed
-        return {"is_active": True, "status_text": f"Active (Check Note: {e})", "description": ""}
+        # Fallback to active so headless 24/7 run generates resume draft package using sheet metadata
+        return {"is_active": True, "status_text": f"Active (Cloud Note: {e})", "description": ""}
