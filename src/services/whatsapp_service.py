@@ -31,14 +31,16 @@ def sanitize_phone_number(raw_phone: str) -> str:
 def generate_whatsapp_message(business_name: str, location: str = "") -> str:
     """
     Generates a short, conversational, personalized outreach text for WhatsApp instant messaging.
+    Explicitly states being a developer based in Pakistan and asks if they would like a website for their business.
     """
     biz_str = f" {business_name}" if business_name and business_name != "N/A" else ""
     loc_str = f" in {location}" if location and location != "N/A" else ""
-    
+
     text = (
-        f"Hi{biz_str} team! I'm {SENDER_NAME}, a Web Developer based{loc_str}. "
-        f"I build modern websites and automated 24/7 quote & booking forms for local businesses to increase sales. "
-        f"Would you be open to a quick 2-minute visual mockup for your business? "
+        f"Hi{biz_str} team! I'm {SENDER_NAME}, a Full-Stack Web Developer based in Pakistan. "
+        f"I noticed your business{loc_str} and wanted to reach out. "
+        f"Do you need a modern, high-converting website or an automated booking system to attract more customers and increase sales for{biz_str}? "
+        f"I'd love to share a quick 2-minute visual mockup designed specifically for your business. "
         f"Portfolio: {SENDER_PORTFOLIO}"
     )
     return text
