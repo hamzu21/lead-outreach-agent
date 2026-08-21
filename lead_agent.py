@@ -2,6 +2,7 @@ import os
 import base64
 import json
 import time
+import datetime
 import requests
 from email.message import EmailMessage
 from bs4 import BeautifulSoup
@@ -11,12 +12,14 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from google import genai
+from openpyxl import Workbook, load_workbook
 
 load_dotenv()
 
 # Configuration
 SPREADSHEET_ID = "1OFy4ZgsUJsY0vwzdbHv-Lq6a6A1fagjb_8dbhX1y5pQ"
 SHEET_NAME = "Sheet1"
+LOCAL_EXCEL_PATH = "lead_outreach_log.xlsx"
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/gmail.compose"
@@ -122,12 +125,63 @@ def create_gmail_draft(gmail_service, to_email, subject, body_text):
     ).execute()
     return draft.get("id")
 
+def update_local_excel(business_name, email, location, industry, draft_id, subject):
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    headers = ["Business Name", "Email Address", "Location", "Industry", "Draft ID", "Subject Line", "Status", "Timestamp"]
+    
+    if os.path.exists(LOCAL_EXCEL_PATH):
+        try:
+            wb = load_workbook(LOCAL_EXCEL_PATH)
+            ws = wb.active
+        except Exception:
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Drafted Leads"
+            ws.append(headers)
+    else:
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Drafted Leads"
+        ws.append(headers)
+    
+    # Check if entry already exists
+    found = False
+    for row in ws.iter_rows(min_row=2, values_only=False):
+        if len(row) > 1 and row[1].value == email:
+            row[4].value = draft_id
+            row[5].value = subject
+            row[6].value = "Draft Created"
+            row[7].value = now_str
+            found = True
+            break
+    
+    if not found:
+        ws.append([business_name, email, location, industry, draft_id, subject, "Draft Created", now_str])
+    
+    wb.save(LOCAL_EXCEL_PATH)
+
 def run_agent(limit=10):
     sheets_service, gmail_service = get_google_services()
 
+    # Ensure Column I header "Outreach Status" exists in Google Sheet
+    try:
+        header_res = sheets_service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range=f"{SHEET_NAME}!I1"
+        ).execute()
+        if not header_res.get("values"):
+            sheets_service.spreadsheets().values().update(
+                spreadsheetId=SPREADSHEET_ID,
+                range=f"{SHEET_NAME}!I1",
+                valueInputOption="RAW",
+                body={"values": [["Outreach Status"]]}
+            ).execute()
+    except Exception as e:
+        print(f"Warning: Could not check/set header: {e}")
+
     result = sheets_service.spreadsheets().values().get(
         spreadsheetId=SPREADSHEET_ID,
-        range=f"{SHEET_NAME}!A2:H"
+        range=f"{SHEET_NAME}!A2:I"
     ).execute()
     rows = result.get("values", [])
 
@@ -139,15 +193,16 @@ def run_agent(limit=10):
             break
 
         business_name = row[0] if len(row) > 0 else ""
-        location = row if len(row) > 1 else ""
+        location = row[1] if len(row) > 1 else ""
         industry = row[2] if len(row) > 2 else ""
         phone = row[3] if len(row) > 3 else ""
         email = row[4] if len(row) > 4 else ""
         social = row[5] if len(row) > 5 else ""
         status = row[6] if len(row) > 6 else ""
+        outreach_status = row[8] if len(row) > 8 else (row[7] if len(row) > 7 and "Draft" in row[7] else "")
 
         # Skip entries without valid emails or already processed
-        if not email or email == "N/A" or "@" not in email or "Draft Created" in status:
+        if not email or email == "N/A" or "@" not in email or "Draft Created" in outreach_status or "Draft Created" in status:
             continue
 
         print(f"\n[{idx}] Processing: {business_name} | {email}")
@@ -173,14 +228,19 @@ def run_agent(limit=10):
         draft_id = create_gmail_draft(gmail_service, email, content["subject"], content["body"])
         print(f"-> Draft created (ID: {draft_id})")
 
-        # Update Sheet
-        update_range = f"{SHEET_NAME}!G{idx}"
+        # 1. Update Google Sheet Column I (Outreach Status)
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        update_range = f"{SHEET_NAME}!I{idx}"
         sheets_service.spreadsheets().values().update(
             spreadsheetId=SPREADSHEET_ID,
             range=update_range,
             valueInputOption="RAW",
-            body={"values": [[f"Draft Created (ID: {draft_id})"]]}
+            body={"values": [[f"Draft Created [{now_str}] (ID: {draft_id})"]]}
         ).execute()
+
+        # 2. Update local Excel log file
+        update_local_excel(business_name, email, location, industry, draft_id, content["subject"])
+        print(f"-> Updated Google Sheet (Column I) & local Excel log ({LOCAL_EXCEL_PATH})")
 
         processed_count += 1
         time.sleep(1)  # Rate limiting pause

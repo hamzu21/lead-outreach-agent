@@ -1,0 +1,27 @@
+# Environment & Secret files
+.env
+credentials.json
+token.json
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# Python Cache & Bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Generated Logs & Local Excel Files
+lead_outreach_log.xlsx
+*.log
+
+# IDE & OS Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
