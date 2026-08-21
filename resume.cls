@@ -32,16 +32,14 @@
 
 \def \printname{
   \begingroup
-    \hfil{\MakeUppercase{\Huge\bfseries \@name}}\hfil
-    \nameskip\break
+    \centerline{\MakeUppercase{\Huge\bfseries \@name}}
+    \nameskip
   \endgroup
 }
 
 \def \printaddress#1{
   \begingroup
-    \def \def@address{#1}
-    \hfil{\def@address}\hfil
-    \nameskip\break
+    \centerline{#1}
   \endgroup
 }
 
