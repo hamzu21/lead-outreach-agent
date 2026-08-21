@@ -10,6 +10,8 @@ def _get_env(key: str, default: str = "") -> str:
 # Google Sheets Configuration
 SPREADSHEET_ID = _get_env("SPREADSHEET_ID", "1OFy4ZgsUJsY0vwzdbHv-Lq6a6A1fagjb_8dbhX1y5pQ")
 SHEET_NAME = _get_env("SHEET_NAME", "Sheet1")
+JOB_SPREADSHEET_ID = _get_env("JOB_SPREADSHEET_ID", SPREADSHEET_ID)
+JOB_SHEET_NAME = _get_env("JOB_SHEET_NAME", SHEET_NAME)
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/gmail.compose"

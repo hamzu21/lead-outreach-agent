@@ -1,0 +1,38 @@
+{
+  "name": "Muhammad Hamza",
+  "title": "Full-Stack Web Developer",
+  "email": "rdmdprofessionalcleaning@gmail.com",
+  "phone": "+92 327 1742800",
+  "location": "Pakistan",
+  "portfolio": "https://mrhamza.dev",
+  "github": "https://github.com/hamzu21",
+  "summary": "Full-Stack Web Developer with expertise in building modern, high-converting web applications, automated workflows, and scalable RESTful APIs. Proficient in React, Node.js, Python, PostgreSQL, and Cloud DevOps.",
+  "skills": [
+    "Python", "JavaScript / TypeScript", "React.js", "Next.js", "Node.js",
+    "Express.js", "REST APIs", "GraphQL", "PostgreSQL", "MongoDB",
+    "TailwindCSS", "Docker", "Git / GitHub Actions", "Google GenAI API"
+  ],
+  "experience": [
+    {
+      "company": "Freelance / Independent Consultant",
+      "role": "Full-Stack Web Developer",
+      "period": "2022 - Present",
+      "highlights": [
+        "Architected and deployed modern web applications and automated booking pipelines for international clients.",
+        "Integrated AI services and cloud APIs (Google Cloud, Gemini API, OpenPyXL, Gmail API) to streamline business workflows.",
+        "Built responsive UI components using React, Next.js, and TailwindCSS with sub-second page load speeds."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "degree": "Bachelor of Science in Computer Science / Software Engineering",
+      "institution": "University Degree",
+      "year": "2020 - 2024"
+    }
+  ],
+  "certifications": [
+    "Full-Stack Web Development Certification",
+    "Python & Cloud DevOps Automation Certificate"
+  ]
+}
