@@ -10,55 +10,63 @@ def get_google_services():
     """
     Authenticates and initializes Google Sheets and Gmail API services.
     Supports environment variables GOOGLE_CREDENTIALS_JSON and GOOGLE_TOKEN_JSON
-    for headless execution environments such as GitHub Actions.
+    for headless execution environments such as AWS EC2 or GitHub Actions.
     """
-    is_ci = os.getenv("CI") == "true" or bool(os.getenv("GITHUB_ACTIONS"))
+    is_ci = os.getenv("CI") == "true" or bool(os.getenv("GITHUB_ACTIONS")) or os.getenv("AWS_EXECUTION_ENV") or True
 
-    # Write TOKEN_FILE from secret if provided
-    token_env = os.getenv("GOOGLE_TOKEN_JSON")
-    if token_env and not os.path.exists(TOKEN_FILE):
-        with open(TOKEN_FILE, "w", encoding="utf-8") as f:
-            f.write(token_env.strip())
+    # 1. Sync TOKEN_FILE from environment variable if provided
+    token_env = os.getenv("GOOGLE_TOKEN_JSON", "").strip(' "\'\t\r\n')
+    if token_env and token_env.startswith("{"):
+        try:
+            with open(TOKEN_FILE, "w", encoding="utf-8") as f:
+                f.write(token_env)
+        except Exception as e:
+            print(f"[Google Auth] Warning writing TOKEN_FILE: {e}")
 
-    # Write CREDENTIALS_FILE from secret if provided
-    creds_env = os.getenv("GOOGLE_CREDENTIALS_JSON")
-    if creds_env and not os.path.exists(CREDENTIALS_FILE):
-        with open(CREDENTIALS_FILE, "w", encoding="utf-8") as f:
-            f.write(creds_env.strip())
+    # 2. Sync CREDENTIALS_FILE from environment variable if provided
+    creds_env = os.getenv("GOOGLE_CREDENTIALS_JSON", "").strip(' "\'\t\r\n')
+    if creds_env and creds_env.startswith("{"):
+        try:
+            with open(CREDENTIALS_FILE, "w", encoding="utf-8") as f:
+                f.write(creds_env)
+        except Exception as e:
+            print(f"[Google Auth] Warning writing CREDENTIALS_FILE: {e}")
 
     creds = None
     if os.path.exists(TOKEN_FILE):
         try:
             creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
         except Exception as e:
-            print(f"Error reading {TOKEN_FILE}: {e}")
+            print(f"[Google Auth] Error reading {TOKEN_FILE}: {e}")
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            print("Refreshing expired Google OAuth credentials...")
+            print("[Google Auth] Refreshing expired Google OAuth credentials...")
             try:
                 creds.refresh(Request())
                 with open(TOKEN_FILE, "w", encoding="utf-8") as token:
                     token.write(creds.to_json())
+                print("[Google Auth] Credentials refreshed successfully.")
             except Exception as e:
-                print(f"Error refreshing Google OAuth token: {e}")
+                print(f"[Google Auth] Error refreshing Google OAuth token: {e}")
                 creds = None
         
         if not creds or not creds.valid:
-            if is_ci:
-                raise RuntimeError(
-                    "Google OAuth credentials missing or invalid in GitHub Actions! "
-                    "Please ensure GOOGLE_TOKEN_JSON and GOOGLE_CREDENTIALS_JSON secrets are set in repository settings."
-                )
             if not os.path.exists(CREDENTIALS_FILE):
                 raise FileNotFoundError(
-                    f"Credentials file '{CREDENTIALS_FILE}' not found. "
-                    "Please provide credentials.json or set GOOGLE_CREDENTIALS_JSON environment variable."
+                    f"Credentials file '{CREDENTIALS_FILE}' not found and GOOGLE_CREDENTIALS_JSON not set."
                 )
-            flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_FILE, SCOPES)
-            creds = flow.run_local_server(port=0)
-            with open(TOKEN_FILE, "w", encoding="utf-8") as token:
-                token.write(creds.to_json())
+            try:
+                flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_FILE, SCOPES)
+                creds = flow.run_local_server(port=0)
+                with open(TOKEN_FILE, "w", encoding="utf-8") as token:
+                    token.write(creds.to_json())
+            except Exception as e:
+                print(f"[Google Auth] Could not run browser OAuth flow: {e}")
+                raise RuntimeError(
+                    "Google OAuth credentials missing or expired on remote server! "
+                    "Ensure GOOGLE_TOKEN_JSON and GOOGLE_CREDENTIALS_JSON are set in .env."
+                )
 
     sheets_service = build("sheets", "v4", credentials=creds)
     gmail_service = build("gmail", "v1", credentials=creds)
