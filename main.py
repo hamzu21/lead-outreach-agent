@@ -3,6 +3,12 @@ import traceback
 import argparse
 from src.agent import run_agent
 from src.modules.job_agent.job_pipeline import run_job_agent
+from src.modules.personal_assistant import (
+    run_morning_brief_agent,
+    run_expense_tracker_agent,
+    run_inbox_zero_agent
+)
+from src.modules.personal_assistant.bot import run_telegram_bot_loop
 
 def main():
     parser = argparse.ArgumentParser(description="Multi-Agent AI Executive Assistant")
@@ -10,14 +16,20 @@ def main():
         "--mode",
         type=str,
         default="outreach",
-        choices=["outreach", "jobs"],
-        help="Agent mode: 'outreach' for client lead outreach, 'jobs' for automated job application & LaTeX resume tailoring"
+        choices=["outreach", "jobs", "morning_brief", "expense_tracker", "inbox_zero", "bot"],
+        help="Agent mode: 'outreach', 'jobs', 'morning_brief', 'expense_tracker', 'inbox_zero', 'bot'"
     )
     parser.add_argument(
         "--limit",
         type=int,
         default=None,
-        help="Maximum items to process in single batch (default: 10 for outreach, 1 for jobs)"
+        help="Maximum items to process in single batch"
+    )
+    parser.add_argument(
+        "--text",
+        type=str,
+        default="",
+        help="Input text string for expense_tracker mode (e.g. --text 'Paid 50$ for AWS')"
     )
     args = parser.parse_args()
 
@@ -28,6 +40,39 @@ def main():
             run_job_agent(limit=limit)
         except Exception as e:
             print(f"\n[ERROR] Job Application Agent failed: {e}", file=sys.stderr)
+            traceback.print_exc()
+            sys.exit(1)
+    elif args.mode == "morning_brief":
+        print("Starting Morning Executive Briefing Agent...")
+        try:
+            run_morning_brief_agent(send_telegram=True)
+        except Exception as e:
+            print(f"\n[ERROR] Morning Briefing Agent failed: {e}", file=sys.stderr)
+            traceback.print_exc()
+            sys.exit(1)
+    elif args.mode == "expense_tracker":
+        input_text = args.text or "Paid $25 for meal"
+        print(f"Starting Expense Tracker Agent (Input: '{input_text}')...")
+        try:
+            run_expense_tracker_agent(input_text, send_telegram=True)
+        except Exception as e:
+            print(f"\n[ERROR] Expense Tracker Agent failed: {e}", file=sys.stderr)
+            traceback.print_exc()
+            sys.exit(1)
+    elif args.mode == "inbox_zero":
+        print("Starting Inbox Zero / Digest Agent...")
+        try:
+            run_inbox_zero_agent(send_telegram=True)
+        except Exception as e:
+            print(f"\n[ERROR] Inbox Zero Agent failed: {e}", file=sys.stderr)
+            traceback.print_exc()
+            sys.exit(1)
+    elif args.mode == "bot":
+        print("Starting Interactive Telegram Bot Listener...")
+        try:
+            run_telegram_bot_loop()
+        except Exception as e:
+            print(f"\n[ERROR] Telegram Bot failed: {e}", file=sys.stderr)
             traceback.print_exc()
             sys.exit(1)
     else:
