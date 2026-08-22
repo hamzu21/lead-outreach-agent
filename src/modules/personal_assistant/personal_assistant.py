@@ -216,15 +216,13 @@ Return strict JSON:
             draft_data = []
             for d in drafts:
                 draft_id = d["id"]
-                msg_meta = d.get("message", {})
-                msg_id = msg_meta.get("id", "")
-
-                msg = self.gmail_service.users().messages().get(
+                draft_obj = self.gmail_service.users().drafts().get(
                     userId="me",
-                    id=msg_id,
-                    format="full"
+                    id=draft_id
                 ).execute()
 
+                msg = draft_obj.get("message", {})
+                msg_id = msg.get("id", "")
                 payload = msg.get("payload", {})
                 headers = payload.get("headers", [])
 
