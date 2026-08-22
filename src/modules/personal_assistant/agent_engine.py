@@ -21,8 +21,9 @@ If the user's message indicates an explicit intent to execute one of the followi
 3. INBOX_DIGEST: User wants to check incoming emails, unread messages, or inbox updates.
 4. DRAFTS_DIGEST: User asks to check saved email drafts, draft folder, pending drafts, or draft messages (e.g., "check drafts", "any emails in drafts").
 5. SEND_DRAFT: User asks to send a specific email draft.
-6. JOB_AGENT: User asks to run job application agent or apply for jobs.
-7. GENERAL_CONVERSATION: User is asking a question, chatting, seeking advice, planning, or teaching guidance.
+6. SEND_EMAIL: User asks to send an email or message to an email address (e.g. "send an email to zeusmr777@gmail.com and ask him schedule meeting").
+7. JOB_AGENT: User asks to run job application agent or apply for jobs.
+8. GENERAL_CONVERSATION: User is asking a question, chatting, seeking advice, planning, or teaching guidance.
 """
 
 class ConversationalAgent:
@@ -54,9 +55,12 @@ User's Latest Message: "{user_text}"
 Analyze the user's message and determine if an action tool is required.
 Return JSON with format:
 {{
-  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "JOB_AGENT" | "GENERAL_CONVERSATION",
+  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "JOB_AGENT" | "GENERAL_CONVERSATION",
   "expense_details": "Extracted expense text if intent is EXPENSE_LOG, else empty string",
   "draft_id": "Extracted draft ID if intent is SEND_DRAFT, else empty string",
+  "to_email": "Extracted recipient email address if intent is SEND_EMAIL, else empty string",
+  "email_subject": "Professional email subject line if intent is SEND_EMAIL, else empty string",
+  "email_body": "Well-formatted professional email body text if intent is SEND_EMAIL, else empty string",
   "response": "Your direct, conversational response to the user. If an action tool will be executed, write a brief friendly intro."
 }}
 """
@@ -78,6 +82,9 @@ Return JSON with format:
             base_response = res_data.get("response", "")
             expense_text = res_data.get("expense_details", user_text)
             draft_id_val = res_data.get("draft_id", "").strip()
+            to_email_val = res_data.get("to_email", "").strip()
+            email_subj_val = res_data.get("email_subject", "Meeting Request").strip()
+            email_body_val = res_data.get("email_body", user_text).strip()
 
             final_reply = base_response
 
@@ -114,6 +121,25 @@ Return JSON with format:
                         final_reply = f"⚠️ Could not find or send draft `{draft_id_val}`."
                 else:
                     final_reply = self.pa_service.get_drafts_digest()
+
+            elif intent == "SEND_EMAIL":
+                if to_email_val:
+                    res = self.pa_service.send_email(
+                        to_email=to_email_val,
+                        subject=email_subj_val,
+                        body_text=email_body_val
+                    )
+                    if res.get("success"):
+                        final_reply = (
+                            f"📧 *Email Sent Successfully!*\n\n"
+                            f"• *To*: `{to_email_val}`\n"
+                            f"• *Subject*: {email_subj_val}\n"
+                            f"• *Message ID*: `{res.get('msg_id')}`"
+                        )
+                    else:
+                        final_reply = f"⚠️ Failed to send email to `{to_email_val}`: {res.get('error')}"
+                else:
+                    final_reply = "⚠️ Please specify a valid recipient email address to send an email."
 
             elif intent == "JOB_AGENT":
                 final_reply = f"🚀 Running Job Application Agent for you now...\n"

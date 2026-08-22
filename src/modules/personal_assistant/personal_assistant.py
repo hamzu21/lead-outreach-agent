@@ -8,7 +8,7 @@ from src.config import (
     EXPENSE_EXCEL_PATH,
     LOCAL_EXCEL_PATH
 )
-from src.services.google_auth import get_google_services
+from src.services.gmail_service import send_gmail_message, create_gmail_draft
 from src.services.ai_generator import generate_ai_content
 from src.services.telegram_service import send_telegram_message
 from openpyxl import Workbook, load_workbook
@@ -304,16 +304,22 @@ Return strict JSON:
         if not self.gmail_service:
             return False
 
+    def send_email(self, to_email: str, subject: str, body_text: str) -> dict:
+        """
+        Composes and sends an email directly via Gmail API.
+        """
+        if not self.gmail_service:
+            self.initialize_services()
+        if not self.gmail_service:
+            return {"success": False, "error": "Gmail service unavailable"}
+
         try:
-            self.gmail_service.users().messages().trash(
-                userId="me",
-                id=message_id
-            ).execute()
-            print(f"-> Message {message_id} moved to trash.")
-            return True
+            msg_id = send_gmail_message(self.gmail_service, to_email, subject, body_text)
+            print(f"-> Sent email to {to_email} (Msg ID: {msg_id})")
+            return {"success": True, "msg_id": msg_id}
         except Exception as e:
-            print(f"[PersonalAssistant] Error trashing email {message_id}: {e}")
-            return False
+            print(f"[PersonalAssistant] Error sending email to {to_email}: {e}")
+            return {"success": False, "error": str(e)}
 
     def get_inbox_digest(self) -> str:
         """
