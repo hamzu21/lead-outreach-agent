@@ -3,6 +3,8 @@
 .env.*
 credentials.json
 token.json
+*.db
+chat_history.db
 
 # Virtual Environments
 venv/
