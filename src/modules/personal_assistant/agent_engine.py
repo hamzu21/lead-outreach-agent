@@ -1,0 +1,110 @@
+import json
+from src.services.ai_generator import get_ai_client, generate_ai_content
+from src.services.memory_db import save_message, get_recent_history
+from src.modules.personal_assistant.personal_assistant import PersonalAssistantService
+from src.modules.job_agent.job_pipeline import run_job_agent
+
+SYSTEM_INSTRUCTION = """
+You are Zeyra, a brilliant, warm, and highly capable AI Executive Assistant pair-programming and assisting Muhammad Hamza.
+You manage his daily workflow, automated job applications, client outreach, expense tracking, and teaching/lecture productivity.
+
+Your Tone & Persona:
+- Professional, intelligent, warm, concise, and proactive.
+- Speak naturally like a high-level personal voice assistant.
+- Use clean Markdown formatting suitable for Telegram messaging (bold, short bullet points).
+- You have persistent memory of past conversation turns.
+
+Available Capabilities & Automated Actions:
+If the user's message indicates an explicit intent to execute one of the following tools, format your internal action plan:
+1. MORNING_BRIEF: User wants agenda, morning update, schedule, or daily overview.
+2. EXPENSE_LOG: User mentions spending money, buying something, or paying a bill (e.g. "I spent $40 on gas", "Paid 2500 PKR for food").
+3. INBOX_DIGEST: User wants to check emails, unread messages, or inbox updates.
+4. JOB_AGENT: User asks to run job application agent or apply for jobs.
+5. GENERAL_CONVERSATION: User is asking a question, chatting, seeking advice, planning, or teaching guidance.
+"""
+
+class ConversationalAgent:
+    def __init__(self):
+        self.pa_service = PersonalAssistantService()
+
+    def process_message(self, chat_id: str, user_text: str) -> str:
+        """
+        Processes a natural language message from the user, retrieves recent chat memory,
+        evaluates tool intent or conversational reply, and saves state to SQLite memory.
+        """
+        # 1. Load recent conversation history from SQLite
+        recent_history = get_recent_history(chat_id=chat_id, limit=8)
+
+        # Build context prompt
+        history_formatted = ""
+        if recent_history:
+            history_formatted = "\nConversation History:\n"
+            for msg in recent_history:
+                role_label = "User" if msg["role"] == "user" else "Zeyra"
+                history_formatted += f"{role_label}: {msg['content']}\n"
+
+        intent_prompt = f"""
+{SYSTEM_INSTRUCTION}
+
+{history_formatted}
+User's Latest Message: "{user_text}"
+
+Analyze the user's message and determine if an action tool is required.
+Return JSON with format:
+{{
+  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "JOB_AGENT" | "GENERAL_CONVERSATION",
+  "expense_details": "Extracted expense text if intent is EXPENSE_LOG, else empty string",
+  "response": "Your direct, conversational response to the user. If an action tool will be executed, write a brief friendly intro."
+}}
+"""
+        try:
+            raw_res = generate_ai_content(intent_prompt, response_mime_type="application/json")
+            res_data = json.loads(raw_res)
+            intent = res_data.get("intent", "GENERAL_CONVERSATION")
+            base_response = res_data.get("response", "")
+            expense_text = res_data.get("expense_details", user_text)
+
+            final_reply = base_response
+
+            # 2. Execute Action Tools based on intent
+            if intent == "MORNING_BRIEF":
+                brief_content = self.pa_service.get_morning_briefing()
+                final_reply = f"{base_response}\n\n{brief_content}"
+
+            elif intent == "EXPENSE_LOG":
+                exp_data = self.pa_service.process_expense(expense_text)
+                final_reply = (
+                    f"Receipt/Expense logged! 🧾\n\n"
+                    f"• *Vendor*: {exp_data.get('vendor')}\n"
+                    f"• *Amount*: {exp_data.get('currency')} {exp_data.get('amount')}\n"
+                    f"• *Category*: {exp_data.get('category')}\n"
+                    f"• *Date*: {exp_data.get('date')}\n"
+                    f"• *Details*: {exp_data.get('description')}"
+                )
+
+            elif intent == "INBOX_DIGEST":
+                digest_content = self.pa_service.get_inbox_digest()
+                final_reply = f"{base_response}\n\n{digest_content}"
+
+            elif intent == "JOB_AGENT":
+                final_reply = f"🚀 Running Job Application Agent for you now...\n"
+                try:
+                    run_job_agent(limit=1)
+                    final_reply += "✅ Job application process complete! Tailored resume compiled to `Muhammad_Hamza_CV.pdf` and draft updated in Gmail."
+                except Exception as e:
+                    final_reply += f"⚠️ Job agent run failed: {e}"
+
+            # 3. Save User Message & Zeyra Response to SQLite Memory
+            save_message(chat_id, "user", user_text)
+            save_message(chat_id, "assistant", final_reply)
+
+            return final_reply
+
+        except Exception as e:
+            print(f"[ConversationalAgent] Exception: {e}")
+            # Fallback simple conversational reply
+            fallback_prompt = f"{SYSTEM_INSTRUCTION}\n{history_formatted}\nUser: {user_text}\nZeyra:"
+            fallback_reply = generate_ai_content(fallback_prompt)
+            save_message(chat_id, "user", user_text)
+            save_message(chat_id, "assistant", fallback_reply)
+            return fallback_reply

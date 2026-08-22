@@ -95,20 +95,23 @@ def start_health_server():
     t = threading.Thread(target=run_server, daemon=True)
     t.start()
 
+from src.modules.personal_assistant.agent_engine import ConversationalAgent
+from src.services.memory_db import clear_history
+
 def run_telegram_bot_loop():
     """
-    Runs an interactive Telegram bot long-polling loop to handle commands and messages.
+    Runs an interactive Telegram bot long-polling loop with full conversational AI memory & function calling.
     """
     if not TELEGRAM_BOT_TOKEN:
         print("[Telegram Bot] Error: TELEGRAM_BOT_TOKEN is not set in environment or config!")
         return
 
     start_health_server()
-    print("🤖 Starting Personal Assistant Telegram Bot...")
-    print("Send /start, /brief, /expense, or /inbox to your bot in Telegram.")
+    print("🤖 Starting Zeyra Conversational AI Agent on Telegram...")
+    print("Send any conversational message or commands to your bot in Telegram.")
     
     offset = 0
-    service = PersonalAssistantService()
+    agent = ConversationalAgent()
 
     while True:
         try:
@@ -125,57 +128,42 @@ def run_telegram_bot_loop():
                 photos = message.get("photo")
                 caption = message.get("caption", "")
 
-                print(f"[Telegram Bot] Message received from Chat ID {chat_id}: text='{text}', photos={bool(photos)}")
+                print(f"[Zeyra Agent] Message received from Chat ID {chat_id}: text='{text}', photos={bool(photos)}")
 
-                # 1. Handle Photo (Receipt)
+                # 1. Handle Photo (Receipt parsing)
                 if photos:
-                    # Best quality photo is the last item in the list
                     best_photo = photos[-1]
                     handle_telegram_photo(chat_id, best_photo["file_id"], caption=caption)
                     continue
 
-                # 2. Handle Text Commands
+                # 2. Handle System Commands
                 if text.startswith("/start") or text.startswith("/help"):
                     welcome_msg = (
-                        "👋 *Welcome to your AI Executive Assistant Bot!*\n\n"
-                        "Here are the available commands:\n"
-                        "• /brief or /morning - Generate Morning Executive Briefing\n"
-                        "• /expense <text> - Log an expense (e.g. `/expense Paid 1500 PKR for lunch`)\n"
-                        "• /inbox - Get categorized Inbox Digest & Action Items\n"
-                        "• 📷 *Photo Receipt* - Upload a receipt photo anytime to auto-log expenses!"
+                        "✨ *Hi Hamza! I am Zeyra, your AI Executive Assistant.*\n\n"
+                        "I am fully conversational! You can talk to me naturally, ask me to log expenses, "
+                        "check your emails, give you a morning briefing, or discuss anything.\n\n"
+                        "💡 *Express Shortcuts*:\n"
+                        "• `/brief` - Morning Executive Briefing\n"
+                        "• `/inbox` - Inbox Digest & Action Items\n"
+                        "• `/clear` - Clear conversation memory\n"
+                        "• 📷 *Send Photo* - Upload a receipt to auto-log expenses!"
                     )
                     send_telegram_message(welcome_msg, chat_id=chat_id)
+                    continue
 
-                elif text.startswith("/brief") or text.startswith("/morning"):
-                    send_telegram_message("🌅 *Generating your Morning Executive Briefing...*", chat_id=chat_id)
-                    briefing = service.get_morning_briefing()
-                    send_telegram_message(briefing, chat_id=chat_id)
+                elif text.startswith("/clear"):
+                    clear_history(chat_id)
+                    send_telegram_message("🧹 *Conversation memory cleared.* How can I help you now?", chat_id=chat_id)
+                    continue
 
-                elif text.startswith("/inbox"):
-                    send_telegram_message("📥 *Scanning inbox and generating digest...*", chat_id=chat_id)
-                    digest = service.get_inbox_digest()
-                    send_telegram_message(digest, chat_id=chat_id)
-
-                elif text.startswith("/expense"):
-                    expense_text = text.replace("/expense", "", 1).strip()
-                    if not expense_text:
-                        send_telegram_message("⚠️ Please provide expense details after `/expense`, e.g., `/expense Paid $45 for fuel`", chat_id=chat_id)
-                    else:
-                        send_telegram_message("🧾 *Processing expense entry...*", chat_id=chat_id)
-                        run_expense_tracker_agent(expense_text, send_telegram=True)
-
-                elif text:
-                    # Arbitrary text input - check if it looks like an expense or general inquiry
-                    if any(kw in text.lower() for kw in ["paid", "bought", "spent", "cost", "rs", "pkr", "$", "dollar", "receipt", "bill"]):
-                        send_telegram_message("🧾 *Processing expense entry...*", chat_id=chat_id)
-                        run_expense_tracker_agent(text, send_telegram=True)
-                    else:
-                        reply = generate_ai_content(f"You are a helpful executive personal assistant responding to the user's message on Telegram:\n\"{text}\"")
-                        send_telegram_message(reply, chat_id=chat_id)
+                # 3. Full Conversational Engine (Memory + Agentic Tool Execution)
+                if text:
+                    reply = agent.process_message(chat_id=chat_id, user_text=text)
+                    send_telegram_message(reply, chat_id=chat_id)
 
         except KeyboardInterrupt:
-            print("\n[Telegram Bot] Stopped by user.")
+            print("\n[Zeyra Agent] Stopped by user.")
             break
         except Exception as e:
-            print(f"[Telegram Bot] Loop exception: {e}")
+            print(f"[Zeyra Agent] Loop exception: {e}")
             time.sleep(3)
