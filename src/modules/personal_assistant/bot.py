@@ -69,6 +69,32 @@ Return JSON with keys:
         print(f"[Telegram Bot] Error analyzing photo receipt: {e}")
         send_telegram_message(f"⚠️ Could not parse receipt image: {e}", chat_id=chat_id)
 
+import http.server
+import socketserver
+import threading
+
+def start_health_server():
+    port = int(os.getenv("PORT", "8080"))
+    class HealthHandler(http.server.SimpleHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"Zeyra AI Bot is running online 24/7!")
+        def log_message(self, format, *args):
+            pass  # Silent health check logs
+
+    def run_server():
+        try:
+            with socketserver.TCPServer(("", port), HealthHandler) as httpd:
+                print(f"[Health Check] Server listening on port {port}")
+                httpd.serve_forever()
+        except Exception as e:
+            print(f"[Health Check] Notice: {e}")
+
+    t = threading.Thread(target=run_server, daemon=True)
+    t.start()
+
 def run_telegram_bot_loop():
     """
     Runs an interactive Telegram bot long-polling loop to handle commands and messages.
@@ -77,6 +103,7 @@ def run_telegram_bot_loop():
         print("[Telegram Bot] Error: TELEGRAM_BOT_TOKEN is not set in environment or config!")
         return
 
+    start_health_server()
     print("🤖 Starting Personal Assistant Telegram Bot...")
     print("Send /start, /brief, /expense, or /inbox to your bot in Telegram.")
     
