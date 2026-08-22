@@ -8,6 +8,7 @@ from src.config import (
     EXPENSE_EXCEL_PATH,
     LOCAL_EXCEL_PATH
 )
+from src.services.google_auth import get_google_services
 from src.services.gmail_service import send_gmail_message, create_gmail_draft
 from src.services.ai_generator import generate_ai_content
 from src.services.telegram_service import send_telegram_message
