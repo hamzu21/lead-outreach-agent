@@ -6,7 +6,7 @@ from src.modules.job_agent.job_pipeline import run_job_agent
 
 SYSTEM_INSTRUCTION = """
 You are Zeyra, a brilliant, warm, and highly capable AI Executive Assistant pair-programming and assisting Muhammad Hamza.
-You manage his daily workflow, automated job applications, client outreach, expense tracking, and teaching/lecture productivity.
+You manage his daily workflow, automated job applications, client outreach, expense tracking, email inbox/drafts management, and teaching/lecture productivity.
 
 Your Tone & Persona:
 - Professional, intelligent, warm, concise, and proactive.
@@ -18,9 +18,11 @@ Available Capabilities & Automated Actions:
 If the user's message indicates an explicit intent to execute one of the following tools, format your internal action plan:
 1. MORNING_BRIEF: User wants agenda, morning update, schedule, or daily overview.
 2. EXPENSE_LOG: User mentions spending money, buying something, or paying a bill (e.g. "I spent $40 on gas", "Paid 2500 PKR for food").
-3. INBOX_DIGEST: User wants to check emails, unread messages, or inbox updates.
-4. JOB_AGENT: User asks to run job application agent or apply for jobs.
-5. GENERAL_CONVERSATION: User is asking a question, chatting, seeking advice, planning, or teaching guidance.
+3. INBOX_DIGEST: User wants to check incoming emails, unread messages, or inbox updates.
+4. DRAFTS_DIGEST: User asks to check saved email drafts, draft folder, pending drafts, or draft messages (e.g., "check drafts", "any emails in drafts").
+5. SEND_DRAFT: User asks to send a specific email draft.
+6. JOB_AGENT: User asks to run job application agent or apply for jobs.
+7. GENERAL_CONVERSATION: User is asking a question, chatting, seeking advice, planning, or teaching guidance.
 """
 
 class ConversationalAgent:
@@ -52,17 +54,30 @@ User's Latest Message: "{user_text}"
 Analyze the user's message and determine if an action tool is required.
 Return JSON with format:
 {{
-  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "JOB_AGENT" | "GENERAL_CONVERSATION",
+  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "JOB_AGENT" | "GENERAL_CONVERSATION",
   "expense_details": "Extracted expense text if intent is EXPENSE_LOG, else empty string",
+  "draft_id": "Extracted draft ID if intent is SEND_DRAFT, else empty string",
   "response": "Your direct, conversational response to the user. If an action tool will be executed, write a brief friendly intro."
 }}
 """
         try:
             raw_res = generate_ai_content(intent_prompt, response_mime_type="application/json")
-            res_data = json.loads(raw_res)
+            
+            # Clean markdown code blocks if wrapped by Gemini
+            clean_json_str = raw_res.strip()
+            if clean_json_str.startswith("```json"):
+                clean_json_str = clean_json_str[7:]
+            if clean_json_str.startswith("```"):
+                clean_json_str = clean_json_str[3:]
+            if clean_json_str.endswith("```"):
+                clean_json_str = clean_json_str[:-3]
+            clean_json_str = clean_json_str.strip()
+
+            res_data = json.loads(clean_json_str)
             intent = res_data.get("intent", "GENERAL_CONVERSATION")
             base_response = res_data.get("response", "")
             expense_text = res_data.get("expense_details", user_text)
+            draft_id_val = res_data.get("draft_id", "").strip()
 
             final_reply = base_response
 
@@ -85,6 +100,20 @@ Return JSON with format:
             elif intent == "INBOX_DIGEST":
                 digest_content = self.pa_service.get_inbox_digest()
                 final_reply = f"{base_response}\n\n{digest_content}"
+
+            elif intent == "DRAFTS_DIGEST":
+                drafts_content = self.pa_service.get_drafts_digest()
+                final_reply = f"{base_response}\n\n{drafts_content}"
+
+            elif intent == "SEND_DRAFT":
+                if draft_id_val:
+                    success = self.pa_service.send_draft(draft_id_val)
+                    if success:
+                        final_reply = f"✅ Sent email draft `{draft_id_val}` successfully!"
+                    else:
+                        final_reply = f"⚠️ Could not find or send draft `{draft_id_val}`."
+                else:
+                    final_reply = self.pa_service.get_drafts_digest()
 
             elif intent == "JOB_AGENT":
                 final_reply = f"🚀 Running Job Application Agent for you now...\n"

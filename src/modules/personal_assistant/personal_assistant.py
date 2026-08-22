@@ -195,6 +195,126 @@ Return strict JSON:
         except Exception as e:
             print(f"Warning: Failed to update local expense Excel: {e}")
 
+    def fetch_drafts(self, max_results: int = 15) -> list:
+        """
+        Fetches metadata of saved email drafts from Gmail.
+        """
+        if not self.gmail_service:
+            self.initialize_services()
+
+        if not self.gmail_service:
+            return []
+
+        try:
+            res = self.gmail_service.users().drafts().list(
+                userId="me",
+                maxResults=max_results
+            ).execute()
+            drafts = res.get("drafts", [])
+
+            draft_data = []
+            for d in drafts:
+                draft_id = d["id"]
+                msg_meta = d.get("message", {})
+                msg_id = msg_meta.get("id", "")
+
+                msg = self.gmail_service.users().messages().get(
+                    userId="me",
+                    id=msg_id,
+                    format="full"
+                ).execute()
+
+                payload = msg.get("payload", {})
+                headers = payload.get("headers", [])
+
+                subject = ""
+                to_email = ""
+                date_str = ""
+
+                for h in headers:
+                    h_name = h.get("name", "").lower()
+                    if h_name == "subject":
+                        subject = h.get("value", "")
+                    elif h_name == "to":
+                        to_email = h.get("value", "")
+                    elif h_name == "date":
+                        date_str = h.get("value", "")
+
+                snippet = msg.get("snippet", "")
+                draft_data.append({
+                    "draft_id": draft_id,
+                    "msg_id": msg_id,
+                    "subject": subject or "(No Subject)",
+                    "to": to_email or "Unspecified",
+                    "date": date_str,
+                    "snippet": snippet
+                })
+            return draft_data
+        except Exception as e:
+            print(f"[PersonalAssistant] Error fetching drafts: {e}")
+            return []
+
+    def get_drafts_digest(self) -> str:
+        """
+        Formats a clean Telegram digest of saved Gmail drafts.
+        """
+        print("[PersonalAssistant] Generating Drafts Digest...")
+        drafts = self.fetch_drafts(max_results=15)
+
+        if not drafts:
+            return "📝 *Email Drafts*: No saved drafts found in your Gmail account."
+
+        res_text = f"📝 *Saved Email Drafts ({len(drafts)} Found)*:\n\n"
+        for idx, d in enumerate(drafts, start=1):
+            res_text += (
+                f"*{idx}. {d['subject']}*\n"
+                f"• *To*: `{d['to']}`\n"
+                f"• *Snippet*: {d['snippet'][:100]}...\n"
+                f"• *Draft ID*: `{d['draft_id']}`\n\n"
+            )
+        res_text += "💡 *Tip*: Tell me to send any draft, e.g., _'Send draft 1'_ or _'Send draft r12345'_."
+        return res_text
+
+    def send_draft(self, draft_id: str) -> bool:
+        """
+        Sends an existing Gmail draft by draft_id.
+        """
+        if not self.gmail_service:
+            self.initialize_services()
+        if not self.gmail_service:
+            return False
+
+        try:
+            self.gmail_service.users().drafts().send(
+                userId="me",
+                body={"id": draft_id}
+            ).execute()
+            print(f"-> Draft {draft_id} sent successfully!")
+            return True
+        except Exception as e:
+            print(f"[PersonalAssistant] Error sending draft {draft_id}: {e}")
+            return False
+
+    def trash_email(self, message_id: str) -> bool:
+        """
+        Moves a message/draft to Trash.
+        """
+        if not self.gmail_service:
+            self.initialize_services()
+        if not self.gmail_service:
+            return False
+
+        try:
+            self.gmail_service.users().messages().trash(
+                userId="me",
+                id=message_id
+            ).execute()
+            print(f"-> Message {message_id} moved to trash.")
+            return True
+        except Exception as e:
+            print(f"[PersonalAssistant] Error trashing email {message_id}: {e}")
+            return False
+
     def get_inbox_digest(self) -> str:
         """
         Categorizes inbox emails and builds a structured summary.
