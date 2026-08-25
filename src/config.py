@@ -18,7 +18,9 @@ EXPENSE_SPREADSHEET_ID = _get_env("EXPENSE_SPREADSHEET_ID", SPREADSHEET_ID)
 EXPENSE_SHEET_NAME = _get_env("EXPENSE_SHEET_NAME", "Expenses")
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/gmail.compose"
+    "https://www.googleapis.com/auth/gmail.compose",
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.modify"
 ]
 
 # Telegram Bot Configuration
