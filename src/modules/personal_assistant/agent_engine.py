@@ -24,7 +24,10 @@ If the user's message indicates an explicit intent to execute one of the followi
 6. SEND_EMAIL: User asks to send an email or message to an email address or contact.
 7. REPLY_EMAIL: User asks to reply to an email, brand name, person, or previous email (e.g., "duolingo ko reply send kro", "reply to zeusmr777@gmail.com", "reply to linkedin", "reply to last email").
 8. JOB_AGENT: User asks to run job application agent or apply for jobs.
-9. GENERAL_CONVERSATION: User is asking a question, chatting, seeking advice, planning, or teaching guidance.
+9. CREATE_DOC: User asks to create, draft, write, or generate a Google Doc, document, report, or proposal (e.g. "make a doc for project X", "create a google document about AI").
+10. CREATE_SHEET: User asks to create, design, or generate a Google Sheet, spreadsheet, Excel table, budget, or log (e.g. "create a google sheet for monthly expenses", "make a spreadsheet of project timeline").
+11. MANAGE_WORKSPACE_FILE: User asks to delete, trash, edit, or update a Google Doc or Google Sheet file (e.g. "delete the budget sheet", "move doc X to trash").
+12. GENERAL_CONVERSATION: User is asking a question, chatting, seeking advice, planning, or teaching guidance.
 """
 
 class ConversationalAgent:
@@ -56,13 +59,15 @@ User's Latest Message: "{user_text}"
 Analyze the user's message and determine if an action tool is required.
 Return JSON with format:
 {{
-  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "REPLY_EMAIL" | "JOB_AGENT" | "GENERAL_CONVERSATION",
+  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "REPLY_EMAIL" | "JOB_AGENT" | "CREATE_DOC" | "CREATE_SHEET" | "MANAGE_WORKSPACE_FILE" | "GENERAL_CONVERSATION",
   "expense_details": "Extracted expense text if intent is EXPENSE_LOG, else empty string",
   "draft_id": "Extracted draft ID if intent is SEND_DRAFT, else empty string",
   "to_email": "Extracted recipient email address, brand name, or sender keyword (e.g. 'duolingo', 'zeusmr777@gmail.com', 'linkedin') if intent is SEND_EMAIL or REPLY_EMAIL, else empty string",
   "email_subject": "Professional email subject line if intent is SEND_EMAIL or REPLY_EMAIL, else empty string",
   "email_body": "Well-formatted professional email body text if intent is SEND_EMAIL, else empty string",
   "reply_instructions": "Extracted user reply instructions if intent is REPLY_EMAIL, else empty string",
+  "doc_title": "Extracted document or spreadsheet title if intent is CREATE_DOC, CREATE_SHEET, or MANAGE_WORKSPACE_FILE, else empty string",
+  "doc_instructions": "Extracted instructions or content details if intent is CREATE_DOC or CREATE_SHEET, else empty string",
   "response": "Your direct, conversational response to the user. If an action tool will be executed, write a brief friendly intro."
 }}
 """
@@ -88,6 +93,8 @@ Return JSON with format:
             email_subj_val = res_data.get("email_subject", "Meeting Request").strip()
             email_body_val = res_data.get("email_body", user_text).strip()
             reply_inst_val = res_data.get("reply_instructions", user_text).strip()
+            doc_title_val = res_data.get("doc_title", "Untitled Workspace File").strip()
+            doc_inst_val = res_data.get("doc_instructions", user_text).strip()
 
             final_reply = base_response
 
@@ -173,6 +180,43 @@ Return JSON with format:
                         final_reply = f"⚠️ Failed to send reply to `{target_email}`: {res.get('error')}"
                 else:
                     final_reply = "⚠️ Could not automatically resolve target recipient email address."
+
+            elif intent == "CREATE_DOC":
+                res = self.pa_service.create_google_document(
+                    title=doc_title_val,
+                    instructions=doc_inst_val
+                )
+                if res.get("success"):
+                    final_reply = (
+                        f"📄 *Google Doc Created Successfully!*\n\n"
+                        f"• *Title*: {res.get('title')}\n"
+                        f"• *Doc ID*: `{res.get('doc_id')}`\n"
+                        f"🔗 *Open/Edit Document*: {res.get('url')}"
+                    )
+                else:
+                    final_reply = f"⚠️ Failed to create Google Doc: {res.get('error')}"
+
+            elif intent == "CREATE_SHEET":
+                res = self.pa_service.create_google_sheet(
+                    title=doc_title_val,
+                    instructions=doc_inst_val
+                )
+                if res.get("success"):
+                    final_reply = (
+                        f"📊 *Google Sheet Created Successfully!*\n\n"
+                        f"• *Title*: {res.get('title')}\n"
+                        f"• *Spreadsheet ID*: `{res.get('spreadsheet_id')}`\n"
+                        f"🔗 *Open/Edit Spreadsheet*: {res.get('url')}"
+                    )
+                else:
+                    final_reply = f"⚠️ Failed to create Google Sheet: {res.get('error')}"
+
+            elif intent == "MANAGE_WORKSPACE_FILE":
+                res = self.pa_service.trash_workspace_file(doc_title_val)
+                if res.get("success"):
+                    final_reply = f"🗑️ *Google Workspace File Trashed*: `{res.get('file_name', doc_title_val)}` (ID: `{res.get('file_id')}`)"
+                else:
+                    final_reply = f"⚠️ Failed to manage/trash file: {res.get('error')}"
 
             elif intent == "JOB_AGENT":
                 final_reply = f"🚀 Running Job Application Agent for you now...\n"

@@ -10,8 +10,17 @@ from src.config import (
 )
 from src.services.google_auth import get_google_services
 from src.services.gmail_service import send_gmail_message, create_gmail_draft
+from src.services.workspace_service import (
+    create_google_doc,
+    update_google_doc,
+    create_styled_spreadsheet,
+    update_spreadsheet_data,
+    trash_drive_file
+)
 from src.services.ai_generator import generate_ai_content
 from src.services.telegram_service import send_telegram_message
+from openpyxl import Workbook, load_workbook
+
 def extract_clean_email(text: str) -> str:
     """Extracts raw email address from header string like 'Duolingo <hello@duolingo.com>'"""
     import re
@@ -25,10 +34,12 @@ class PersonalAssistantService:
     def __init__(self):
         self.sheets_service = None
         self.gmail_service = None
+        self.docs_service = None
+        self.drive_service = None
 
     def initialize_services(self):
         try:
-            self.sheets_service, self.gmail_service = get_google_services()
+            self.sheets_service, self.gmail_service, self.docs_service, self.drive_service = get_google_services()
         except Exception as e:
             print(f"[PersonalAssistant] Warning initializing Google services: {e}")
 
@@ -468,6 +479,89 @@ Format the response neatly for Telegram (Markdown). Keep summaries punchy and cl
 """
         digest_text = generate_ai_content(prompt)
         return digest_text
+
+    def create_google_document(self, title: str, instructions: str) -> dict:
+        """
+        Uses Gemini to generate well-structured document text, creates a new Google Doc,
+        makes it shareable, and returns the view URL.
+        """
+        if not self.docs_service or not self.drive_service:
+            self.initialize_services()
+
+        print(f"[PersonalAssistant] Drafting Google Doc: '{title}'...")
+        prompt = f"""
+You are an executive assistant drafting a comprehensive, well-structured document on behalf of Muhammad Hamza.
+
+Document Title: {title}
+Topic / User Instructions: "{instructions}"
+
+Write a detailed, clear, professional document.
+Use clean section headers (e.g., # Executive Summary, ## Section 1), bullet points, and short readable paragraphs.
+Do not wrap in markdown code blocks, just return raw document text.
+"""
+        doc_text = generate_ai_content(prompt)
+        return create_google_doc(self.docs_service, self.drive_service, title=title, content_text=doc_text)
+
+    def create_google_sheet(self, title: str, instructions: str) -> dict:
+        """
+        Uses Gemini to generate structured tabular data (headers + rows),
+        creates a styled Google Sheet with colored headers, makes it shareable,
+        and returns the spreadsheet URL.
+        """
+        if not self.sheets_service or not self.drive_service:
+            self.initialize_services()
+
+        print(f"[PersonalAssistant] Generating Google Sheet: '{title}'...")
+        prompt = f"""
+You are an executive data assistant creating a structured spreadsheet table for Muhammad Hamza.
+
+Spreadsheet Title: {title}
+Data Description / User Instructions: "{instructions}"
+
+Generate structured JSON containing:
+- "headers": List of string column header names (e.g. ["Category", "Item", "Cost (USD)", "Status"])
+- "rows": List of rows, where each row is a list of cell values
+- "theme_color": Choose one of ["blue", "green", "purple"]
+
+Return strict JSON:
+{{
+  "headers": ["Header 1", "Header 2", "Header 3"],
+  "rows": [
+    ["Val 1", "Val 2", "Val 3"],
+    ["Val 4", "Val 5", "Val 6"]
+  ],
+  "theme_color": "blue"
+}}
+"""
+        raw_json = generate_ai_content(prompt, response_mime_type="application/json")
+        try:
+            clean_str = raw_json.strip().strip("`").replace("json\n", "")
+            data = json.loads(clean_str)
+            headers = data.get("headers", ["Item", "Details", "Status"])
+            rows = data.get("rows", [])
+            theme = data.get("theme_color", "blue")
+        except Exception as e:
+            print(f"[PersonalAssistant] Error parsing Gemini sheet JSON: {e}")
+            headers = ["Title", "Details", "Date"]
+            rows = [[title, instructions, datetime.datetime.now().strftime("%Y-%m-%d")]]
+            theme = "blue"
+
+        return create_styled_spreadsheet(
+            self.sheets_service,
+            self.drive_service,
+            title=title,
+            headers=headers,
+            rows=rows,
+            theme_color=theme
+        )
+
+    def trash_workspace_file(self, file_identifier: str) -> dict:
+        """
+        Moves a Google Doc or Google Sheet file to Drive Trash by ID or title keyword.
+        """
+        if not self.drive_service:
+            self.initialize_services()
+        return trash_drive_file(self.drive_service, file_identifier)
 
 
 def run_morning_brief_agent(send_telegram: bool = True):

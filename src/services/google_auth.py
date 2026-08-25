@@ -70,4 +70,6 @@ def get_google_services():
 
     sheets_service = build("sheets", "v4", credentials=creds)
     gmail_service = build("gmail", "v1", credentials=creds)
-    return sheets_service, gmail_service
+    docs_service = build("docs", "v1", credentials=creds)
+    drive_service = build("drive", "v3", credentials=creds)
+    return sheets_service, gmail_service, docs_service, drive_service
