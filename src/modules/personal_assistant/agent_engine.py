@@ -26,8 +26,9 @@ If the user's message indicates an explicit intent to execute one of the followi
 8. JOB_AGENT: User asks to run job application agent or apply for jobs.
 9. CREATE_DOC: User asks to create, draft, write, or generate a Google Doc, document, report, or proposal (e.g. "make a doc for project X", "create a google document about AI").
 10. CREATE_SHEET: User asks to create, design, or generate a Google Sheet, spreadsheet, Excel table, budget, or log (e.g. "create a google sheet for monthly expenses", "make a spreadsheet of project timeline").
-11. MANAGE_WORKSPACE_FILE: User asks to delete, trash, edit, or update a Google Doc or Google Sheet file (e.g. "delete the budget sheet", "move doc X to trash").
-12. GENERAL_CONVERSATION: User is asking a question, chatting, seeking advice, planning, or teaching guidance.
+11. MANAGE_WORKSPACE_FILE: User asks to delete, trash, edit, or update a Google Doc or Google Sheet file (e.g. "delete the budget sheet", "personal budget sheet ko delete krdo", "move doc X to trash").
+12. LIST_WORKSPACE_FILES: User asks to list, view, show, or browse Google Drive files, spreadsheets, or docs (e.g. "cloud mein kon kon c spreadsheets pri hain sbki list bna k do", "list my spreadsheets", "show my google docs").
+13. GENERAL_CONVERSATION: User is asking a question, chatting, seeking advice, planning, or teaching guidance.
 """
 
 class ConversationalAgent:
@@ -59,7 +60,7 @@ User's Latest Message: "{user_text}"
 Analyze the user's message and determine if an action tool is required.
 Return JSON with format:
 {{
-  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "REPLY_EMAIL" | "JOB_AGENT" | "CREATE_DOC" | "CREATE_SHEET" | "MANAGE_WORKSPACE_FILE" | "GENERAL_CONVERSATION",
+  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "REPLY_EMAIL" | "JOB_AGENT" | "CREATE_DOC" | "CREATE_SHEET" | "MANAGE_WORKSPACE_FILE" | "LIST_WORKSPACE_FILES" | "GENERAL_CONVERSATION",
   "expense_details": "Extracted expense text if intent is EXPENSE_LOG, else empty string",
   "draft_id": "Extracted draft ID if intent is SEND_DRAFT, else empty string",
   "to_email": "Extracted recipient email address, brand name, or sender keyword (e.g. 'duolingo', 'zeusmr777@gmail.com', 'linkedin') if intent is SEND_EMAIL or REPLY_EMAIL, else empty string",
@@ -217,6 +218,10 @@ Return JSON with format:
                     final_reply = f"🗑️ *Google Workspace File Trashed*: `{res.get('file_name', doc_title_val)}` (ID: `{res.get('file_id')}`)"
                 else:
                     final_reply = f"⚠️ Failed to manage/trash file: {res.get('error')}"
+
+            elif intent == "LIST_WORKSPACE_FILES":
+                digest_content = self.pa_service.list_workspace_files_digest(file_type="spreadsheet")
+                final_reply = f"{base_response}\n\n{digest_content}"
 
             elif intent == "JOB_AGENT":
                 final_reply = f"🚀 Running Job Application Agent for you now...\n"

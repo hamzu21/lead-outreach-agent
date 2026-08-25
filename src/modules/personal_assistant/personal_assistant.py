@@ -15,7 +15,8 @@ from src.services.workspace_service import (
     update_google_doc,
     create_styled_spreadsheet,
     update_spreadsheet_data,
-    trash_drive_file
+    trash_drive_file,
+    list_workspace_files
 )
 from src.services.ai_generator import generate_ai_content
 from src.services.telegram_service import send_telegram_message
@@ -561,7 +562,37 @@ Return strict JSON:
         """
         if not self.drive_service:
             self.initialize_services()
+        if not self.drive_service:
+            return {
+                "success": False,
+                "error": "Google Drive permissions needed. Please run 'python reauth_google.py' once on your PC to authorize Drive access."
+            }
         return trash_drive_file(self.drive_service, file_identifier)
+
+    def list_workspace_files_digest(self, file_type: str = "spreadsheet") -> str:
+        """
+        Lists Google Drive files (spreadsheets or documents) and formats a clean Telegram digest with URLs.
+        """
+        if not self.drive_service:
+            self.initialize_services()
+        
+        res = list_workspace_files(self.drive_service, file_type=file_type)
+        if not res.get("success"):
+            return f"⚠️ Could not list Drive files: {res.get('error')}"
+
+        files = res.get("files", [])
+        if not files:
+            return f"📂 *Google Drive*: No active {file_type} files found in your cloud drive."
+
+        type_label = "Spreadsheets" if "sheet" in file_type.lower() else "Workspace Files"
+        res_text = f"📊 *Your Google Cloud {type_label} ({len(files)} Found)*:\n\n"
+        for idx, f in enumerate(files, start=1):
+            name = f.get("name", "Untitled")
+            f_id = f.get("id")
+            link = f.get("webViewLink") or f"https://docs.google.com/spreadsheets/d/{f_id}/edit"
+            res_text += f"*{idx}. {name}*\n• 🔗 [Open File]({link})\n• *ID*: `{f_id}`\n\n"
+
+        return res_text
 
 
 def run_morning_brief_agent(send_telegram: bool = True):

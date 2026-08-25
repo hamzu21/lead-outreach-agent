@@ -257,3 +257,32 @@ def trash_drive_file(drive_service, file_identifier: str) -> dict:
     except Exception as e:
         print(f"[WorkspaceService] Error trashing file '{file_identifier}': {e}")
         return {"success": False, "error": str(e)}
+
+def list_workspace_files(drive_service, file_type: str = "all") -> dict:
+    """
+    Lists Google Drive spreadsheets and/or documents with title, mimeType, and web links.
+    """
+    if not drive_service:
+        return {"success": False, "error": "Google Drive service unavailable"}
+
+    try:
+        q_parts = ["trashed = false"]
+        if file_type.lower() in ["spreadsheet", "sheets", "excel"]:
+            q_parts.append("mimeType = 'application/vnd.google-apps.spreadsheet'")
+        elif file_type.lower() in ["document", "docs", "doc"]:
+            q_parts.append("mimeType = 'application/vnd.google-apps.document'")
+        else:
+            q_parts.append("(mimeType = 'application/vnd.google-apps.spreadsheet' or mimeType = 'application/vnd.google-apps.document')")
+
+        query = " and ".join(q_parts)
+        res = drive_service.files().list(
+            q=query,
+            pageSize=25,
+            fields="files(id, name, mimeType, webViewLink, createdTime)"
+        ).execute()
+
+        files = res.get("files", [])
+        return {"success": True, "files": files}
+    except Exception as e:
+        print(f"[WorkspaceService] Error listing Drive files: {e}")
+        return {"success": False, "error": str(e)}

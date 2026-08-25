@@ -49,7 +49,14 @@ def get_google_services():
                 print("[Google Auth] Credentials refreshed successfully.")
             except Exception as e:
                 print(f"[Google Auth] Error refreshing Google OAuth token: {e}")
-                creds = None
+                # Try fallback load without strict scope lock
+                try:
+                    creds = Credentials.from_authorized_user_file(TOKEN_FILE)
+                    if creds and creds.refresh_token:
+                        creds.refresh(Request())
+                except Exception as ex:
+                    print(f"[Google Auth] Fallback refresh error: {ex}")
+                    creds = None
         
         if not creds or not creds.valid:
             if not os.path.exists(CREDENTIALS_FILE):
@@ -63,13 +70,16 @@ def get_google_services():
                     token.write(creds.to_json())
             except Exception as e:
                 print(f"[Google Auth] Could not run browser OAuth flow: {e}")
-                raise RuntimeError(
-                    "Google OAuth credentials missing or expired on remote server! "
-                    "Ensure GOOGLE_TOKEN_JSON and GOOGLE_CREDENTIALS_JSON are set in .env."
-                )
 
-    sheets_service = build("sheets", "v4", credentials=creds)
-    gmail_service = build("gmail", "v1", credentials=creds)
-    docs_service = build("docs", "v1", credentials=creds)
-    drive_service = build("drive", "v3", credentials=creds)
+    sheets_service = build("sheets", "v4", credentials=creds) if creds else None
+    gmail_service = build("gmail", "v1", credentials=creds) if creds else None
+    docs_service = None
+    drive_service = None
+    try:
+        if creds:
+            docs_service = build("docs", "v1", credentials=creds)
+            drive_service = build("drive", "v3", credentials=creds)
+    except Exception as e:
+        print(f"[Google Auth] Warning building docs/drive services: {e}")
+
     return sheets_service, gmail_service, docs_service, drive_service
