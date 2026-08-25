@@ -12,7 +12,14 @@ from src.services.google_auth import get_google_services
 from src.services.gmail_service import send_gmail_message, create_gmail_draft
 from src.services.ai_generator import generate_ai_content
 from src.services.telegram_service import send_telegram_message
-from openpyxl import Workbook, load_workbook
+def extract_clean_email(text: str) -> str:
+    """Extracts raw email address from header string like 'Duolingo <hello@duolingo.com>'"""
+    import re
+    match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', text)
+    if match:
+        return match.group(0)
+    return text.strip()
+
 
 class PersonalAssistantService:
     def __init__(self):
@@ -336,6 +343,60 @@ Return strict JSON:
         except Exception as e:
             print(f"[PersonalAssistant] Error sending email to {to_email}: {e}")
             return {"success": False, "error": str(e)}
+
+    def resolve_target_email(self, keyword_or_email: str) -> dict:
+        """
+        Smart recipient lookup. If given a full email address (e.g. 'zeusmr777@gmail.com'), returns it.
+        If given a brand/name/keyword (e.g. 'duolingo', 'linkedin', 'rocketams'), queries Gmail
+        to find the most recent matching email and extracts the sender's exact email & subject!
+        """
+        cleaned_kw = (keyword_or_email or "").strip(' "\'\t\r\n')
+        
+        # 1. If already a valid email address
+        if "@" in cleaned_kw and "." in cleaned_kw.split("@")[-1]:
+            raw_email = extract_clean_email(cleaned_kw)
+            return {"to_email": raw_email, "subject": "Inquiry"}
+
+        # 2. Search Gmail for matching messages by keyword/brand name
+        search_q = cleaned_kw if cleaned_kw else "label:INBOX"
+        try:
+            if not self.gmail_service:
+                self.initialize_services()
+            if self.gmail_service:
+                res = self.gmail_service.users().messages().list(
+                    userId="me",
+                    q=search_q,
+                    maxResults=5
+                ).execute()
+                messages = res.get("messages", [])
+                
+                if messages:
+                    msg = self.gmail_service.users().messages().get(
+                        userId="me",
+                        id=messages[0]["id"],
+                        format="full"
+                    ).execute()
+                    
+                    headers = msg.get("payload", {}).get("headers", [])
+                    sender_email = ""
+                    subject_str = ""
+                    for h in headers:
+                        h_name = h.get("name", "").lower()
+                        if h_name == "from":
+                            sender_email = extract_clean_email(h.get("value", ""))
+                        elif h_name == "subject":
+                            subject_str = h.get("value", "")
+                            
+                    if sender_email:
+                        try:
+                            print(f"-> Smart resolved '{cleaned_kw}' to '{sender_email}'")
+                        except Exception:
+                            pass
+                        return {"to_email": sender_email, "subject": subject_str}
+        except Exception as e:
+            print(f"[PersonalAssistant] Error resolving target email for '{cleaned_kw}': {e}")
+
+        return {"to_email": cleaned_kw, "subject": "Inquiry"}
 
     def reply_to_email(self, to_email: str, subject: str, instructions: str) -> dict:
         """
