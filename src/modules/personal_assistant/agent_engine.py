@@ -76,6 +76,7 @@ Return JSON with format:
   "invoice_amount": "Extracted numerical amount if intent is CREATE_INVOICE, else empty string",
   "invoice_currency": "Extracted currency code like USD or PKR if intent is CREATE_INVOICE, default USD",
   "invoice_desc": "Extracted work description if intent is CREATE_INVOICE, default 'Software Development Services'",
+  "send_invoice_email": true if user asks to email or send the invoice to client email, else false,
   "audit_url": "Extracted website URL if intent is AUDIT_WEBSITE, else empty string",
   "response": "Your direct, conversational response to the user. If an action tool will be executed, write a brief friendly intro."
 }}
@@ -108,6 +109,7 @@ Return JSON with format:
             invoice_amt_val = res_data.get("invoice_amount", "500").strip()
             invoice_curr_val = res_data.get("invoice_currency", "USD").strip()
             invoice_desc_val = res_data.get("invoice_desc", "Software Development Services").strip()
+            send_invoice_email_val = bool(res_data.get("send_invoice_email", False))
             audit_url_val = res_data.get("audit_url", "").strip()
 
             final_reply = base_response
@@ -242,17 +244,23 @@ Return JSON with format:
                     amount=invoice_amt_val,
                     currency=invoice_curr_val,
                     description=invoice_desc_val,
-                    client_email=to_email_val
+                    client_email=to_email_val,
+                    send_email=bool(send_invoice_email_val or (to_email_val and "@" in to_email_val))
                 )
                 if res.get("success"):
+                    email_msg = f"• 📧 *PDF Emailed To Client*: `{res.get('client_email')}` (Msg ID: `{res.get('email_msg_id')}`)\n" if res.get("email_sent") else "• ℹ️ *Email*: PDF ready (not emailed yet).\n"
+                    drive_url = f"• 🔗 *Google Drive PDF Link*: {res.get('drive_pdf_url')}\n" if res.get("drive_pdf_url") else ""
                     final_reply = (
-                        f"🧾 *Invoice Generated Successfully!*\n\n"
+                        f"🧾 *LaTeX PDF Invoice Generated Successfully!*\n\n"
                         f"• *Invoice #*: `{res.get('invoice_number')}`\n"
                         f"• *Client*: {res.get('client_name')}\n"
                         f"• *Amount*: {res.get('amount')}\n"
                         f"• *Due Date*: {res.get('due_date')}\n"
-                        f"🔗 *View/Print Invoice Doc*: {res.get('doc_url')}\n"
-                        f"📊 *Status*: Logged into 'Client Billing & Invoices' sheet."
+                        f"• *LaTeX Source File*: `{res.get('tex_filename')}` (.tex)\n"
+                        f"• *Compiled PDF File*: `{res.get('pdf_filename')}` (.pdf)\n"
+                        f"{email_msg}"
+                        f"{drive_url}"
+                        f"• 📊 *Status*: Logged into 'Client Billing & Invoices' sheet."
                     )
                 else:
                     final_reply = f"⚠️ Failed to generate invoice: {res.get('error')}"

@@ -597,21 +597,24 @@ Return strict JSON:
 
         return res_text
 
-    def create_invoice(self, client_name: str, amount: str, currency: str = "USD", description: str = "Software Development Services", client_email: str = "") -> dict:
+    def create_invoice(self, client_name: str, amount: str, currency: str = "USD", description: str = "Software Development Services", client_email: str = "", send_email: bool = False) -> dict:
         """
-        Creates a professional Google Doc invoice, logs billing in Google Sheets, and returns doc details.
+        Creates a LaTeX & PDF invoice, uploads PDF to Google Drive, logs in Google Sheets,
+        and optionally emails the PDF attachment directly to the client.
         """
-        if not self.docs_service or not self.sheets_service or not self.drive_service:
+        if not self.docs_service or not self.sheets_service or not self.drive_service or not self.gmail_service:
             self.initialize_services()
         return create_client_invoice(
             self.docs_service,
             self.sheets_service,
             self.drive_service,
+            self.gmail_service,
             client_name=client_name,
             amount=amount,
             currency=currency,
             description=description,
-            client_email=client_email
+            client_email=client_email,
+            send_email=send_email
         )
 
     def audit_website(self, url: str) -> dict:
