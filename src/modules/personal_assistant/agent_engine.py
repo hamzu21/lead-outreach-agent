@@ -295,12 +295,7 @@ Return JSON with format:
                 final_reply = f"{base_response}\n\n{radar_content}"
 
             elif intent == "JOB_AGENT":
-                final_reply = f"🚀 Running Job Application Agent for you now...\n"
-                try:
-                    run_job_agent(limit=1)
-                    final_reply += "✅ Job application process complete! Tailored resume compiled to `Muhammad_Hamza_CV.pdf` and draft updated in Gmail."
-                except Exception as e:
-                    final_reply += f"⚠️ Job agent run failed: {e}"
+                final_reply = "🛑 *Job Application Agent is currently disabled* as per your request. If you ever want to re-enable it in the future, just let me know!"
 
             # 3. Save User Message & Zeyra Response to SQLite Memory
             save_message(chat_id, "user", user_text)
