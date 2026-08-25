@@ -1,3 +1,5 @@
+import os
+import glob
 import json
 from src.services.ai_generator import get_ai_client, generate_ai_content
 from src.services.memory_db import save_message, get_recent_history
@@ -21,14 +23,14 @@ If the user's message indicates an explicit intent to execute one of the followi
 3. INBOX_DIGEST: User wants to check incoming emails, unread messages, or inbox updates.
 4. DRAFTS_DIGEST: User asks to check saved email drafts, draft folder, pending drafts, or draft messages (e.g., "check drafts", "any emails in drafts").
 5. SEND_DRAFT: User asks to send a specific email draft.
-6. SEND_EMAIL: User asks to send an email or message to an email address or contact.
+6. SEND_EMAIL: User asks to send a general email or message (NOT an invoice, receipt, or bill).
 7. REPLY_EMAIL: User asks to reply to an email, brand name, person, or previous email (e.g., "duolingo ko reply send kro", "reply to zeusmr777@gmail.com", "reply to linkedin", "reply to last email").
 8. JOB_AGENT: User asks to run job application agent or apply for jobs.
 9. CREATE_DOC: User asks to create, draft, write, or generate a Google Doc, document, report, or proposal (e.g. "make a doc for project X", "create a google document about AI").
 10. CREATE_SHEET: User asks to create, design, or generate a Google Sheet, spreadsheet, Excel table, budget, or log (e.g. "create a google sheet for monthly expenses", "make a spreadsheet of project timeline").
 11. MANAGE_WORKSPACE_FILE: User asks to delete, trash, edit, or update a Google Doc or Google Sheet file (e.g. "delete the budget sheet", "personal budget sheet ko delete krdo", "move doc X to trash").
 12. LIST_WORKSPACE_FILES: User asks to list, view, show, or browse Google Drive files, spreadsheets, or docs (e.g. "cloud mein kon kon c spreadsheets pri hain sbki list bna k do", "list my spreadsheets", "show my google docs").
-13. CREATE_INVOICE: User asks to generate, create, or send an invoice / bill for a client (e.g. "Client Alex ko $700 ka invoice bana kar bhejo", "create invoice of 500 USD for John for web dev").
+13. CREATE_INVOICE: User asks to generate, create, or email/send an invoice, bill, or receipt (e.g. "Client Alex ko $700 ka invoice bana kar bhejo", "invoice client ko bhejo", "send invoice to alex@example.com", "invoice email karo"). CRITICAL RULE: ANY message mentioning 'invoice', 'receipt', 'bill', or sending an invoice MUST ALWAYS be classified as CREATE_INVOICE!
 14. AUDIT_WEBSITE: User asks to scan, audit, or analyze a website URL and generate a sales pitch (e.g. "https://example.com ki website audit karo aur pitch doc banao", "audit website acme.com").
 15. TECH_RADAR: User asks to view daily tech trends, tech radar, or micro-SaaS ideas (e.g. "show tech radar", "aaj ke micro-saas ideas dekho", "what are top trending client tech stacks").
 16. GENERAL_CONVERSATION: User is asking a question, chatting, seeking advice, planning, or teaching guidance.
@@ -154,15 +156,25 @@ Return JSON with format:
                 target_email = resolved.get("to_email", "")
                 target_subj = email_subj_val or resolved.get("subject", "Meeting Request")
 
+                # Check if email is an invoice email requiring PDF attachment
+                attachment_file = None
+                if any(kw in (user_text + email_body_val + target_subj).lower() for kw in ["invoice", "receipt", "bill", "attached"]):
+                    pdf_files = sorted(glob.glob("Invoice_INV-*.pdf"), key=os.path.getmtime, reverse=True)
+                    if pdf_files:
+                        attachment_file = pdf_files[0]
+                        print(f"[ConversationalAgent] Found invoice attachment for SEND_EMAIL: {attachment_file}")
+
                 if target_email and "@" in target_email:
                     res = self.pa_service.send_email(
                         to_email=target_email,
                         subject=target_subj,
-                        body_text=email_body_val
+                        body_text=email_body_val,
+                        attachment_path=attachment_file
                     )
                     if res.get("success"):
+                        attach_str = f"\n• 📎 *Attached File*: `{os.path.basename(attachment_file)}`" if attachment_file else ""
                         final_reply = (
-                            f"📧 *Email Sent Successfully!*\n\n"
+                            f"📧 *Email Sent Successfully!*{attach_str}\n\n"
                             f"• *To*: `{target_email}`\n"
                             f"• *Subject*: {target_subj}\n"
                             f"• *Message ID*: `{res.get('msg_id')}`"

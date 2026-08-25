@@ -342,9 +342,9 @@ Return strict JSON:
         if not self.gmail_service:
             return False
 
-    def send_email(self, to_email: str, subject: str, body_text: str) -> dict:
+    def send_email(self, to_email: str, subject: str, body_text: str, attachment_path: str = None) -> dict:
         """
-        Composes and sends an email directly via Gmail API.
+        Composes and sends an email directly via Gmail API with optional file attachment.
         """
         if not self.gmail_service:
             self.initialize_services()
@@ -352,7 +352,7 @@ Return strict JSON:
             return {"success": False, "error": "Gmail service unavailable"}
 
         try:
-            msg_id = send_gmail_message(self.gmail_service, to_email, subject, body_text)
+            msg_id = send_gmail_message(self.gmail_service, to_email, subject, body_text, attachment_path=attachment_path)
             print(f"-> Sent email to {to_email} (Msg ID: {msg_id})")
             return {"success": True, "msg_id": msg_id}
         except Exception as e:
