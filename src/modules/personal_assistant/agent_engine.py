@@ -28,7 +28,10 @@ If the user's message indicates an explicit intent to execute one of the followi
 10. CREATE_SHEET: User asks to create, design, or generate a Google Sheet, spreadsheet, Excel table, budget, or log (e.g. "create a google sheet for monthly expenses", "make a spreadsheet of project timeline").
 11. MANAGE_WORKSPACE_FILE: User asks to delete, trash, edit, or update a Google Doc or Google Sheet file (e.g. "delete the budget sheet", "personal budget sheet ko delete krdo", "move doc X to trash").
 12. LIST_WORKSPACE_FILES: User asks to list, view, show, or browse Google Drive files, spreadsheets, or docs (e.g. "cloud mein kon kon c spreadsheets pri hain sbki list bna k do", "list my spreadsheets", "show my google docs").
-13. GENERAL_CONVERSATION: User is asking a question, chatting, seeking advice, planning, or teaching guidance.
+13. CREATE_INVOICE: User asks to generate, create, or send an invoice / bill for a client (e.g. "Client Alex ko $700 ka invoice bana kar bhejo", "create invoice of 500 USD for John for web dev").
+14. AUDIT_WEBSITE: User asks to scan, audit, or analyze a website URL and generate a sales pitch (e.g. "https://example.com ki website audit karo aur pitch doc banao", "audit website acme.com").
+15. TECH_RADAR: User asks to view daily tech trends, tech radar, or micro-SaaS ideas (e.g. "show tech radar", "aaj ke micro-saas ideas dekho", "what are top trending client tech stacks").
+16. GENERAL_CONVERSATION: User is asking a question, chatting, seeking advice, planning, or teaching guidance.
 """
 
 class ConversationalAgent:
@@ -60,7 +63,7 @@ User's Latest Message: "{user_text}"
 Analyze the user's message and determine if an action tool is required.
 Return JSON with format:
 {{
-  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "REPLY_EMAIL" | "JOB_AGENT" | "CREATE_DOC" | "CREATE_SHEET" | "MANAGE_WORKSPACE_FILE" | "LIST_WORKSPACE_FILES" | "GENERAL_CONVERSATION",
+  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "REPLY_EMAIL" | "JOB_AGENT" | "CREATE_DOC" | "CREATE_SHEET" | "MANAGE_WORKSPACE_FILE" | "LIST_WORKSPACE_FILES" | "CREATE_INVOICE" | "AUDIT_WEBSITE" | "TECH_RADAR" | "GENERAL_CONVERSATION",
   "expense_details": "Extracted expense text if intent is EXPENSE_LOG, else empty string",
   "draft_id": "Extracted draft ID if intent is SEND_DRAFT, else empty string",
   "to_email": "Extracted recipient email address, brand name, or sender keyword (e.g. 'duolingo', 'zeusmr777@gmail.com', 'linkedin') if intent is SEND_EMAIL or REPLY_EMAIL, else empty string",
@@ -69,6 +72,11 @@ Return JSON with format:
   "reply_instructions": "Extracted user reply instructions if intent is REPLY_EMAIL, else empty string",
   "doc_title": "Extracted document or spreadsheet title if intent is CREATE_DOC, CREATE_SHEET, or MANAGE_WORKSPACE_FILE, else empty string",
   "doc_instructions": "Extracted instructions or content details if intent is CREATE_DOC or CREATE_SHEET, else empty string",
+  "client_name": "Extracted client name if intent is CREATE_INVOICE, else empty string",
+  "invoice_amount": "Extracted numerical amount if intent is CREATE_INVOICE, else empty string",
+  "invoice_currency": "Extracted currency code like USD or PKR if intent is CREATE_INVOICE, default USD",
+  "invoice_desc": "Extracted work description if intent is CREATE_INVOICE, default 'Software Development Services'",
+  "audit_url": "Extracted website URL if intent is AUDIT_WEBSITE, else empty string",
   "response": "Your direct, conversational response to the user. If an action tool will be executed, write a brief friendly intro."
 }}
 """
@@ -96,6 +104,11 @@ Return JSON with format:
             reply_inst_val = res_data.get("reply_instructions", user_text).strip()
             doc_title_val = res_data.get("doc_title", "Untitled Workspace File").strip()
             doc_inst_val = res_data.get("doc_instructions", user_text).strip()
+            client_name_val = res_data.get("client_name", "Valued Client").strip()
+            invoice_amt_val = res_data.get("invoice_amount", "500").strip()
+            invoice_curr_val = res_data.get("invoice_currency", "USD").strip()
+            invoice_desc_val = res_data.get("invoice_desc", "Software Development Services").strip()
+            audit_url_val = res_data.get("audit_url", "").strip()
 
             final_reply = base_response
 
@@ -222,6 +235,44 @@ Return JSON with format:
             elif intent == "LIST_WORKSPACE_FILES":
                 digest_content = self.pa_service.list_workspace_files_digest(file_type="spreadsheet")
                 final_reply = f"{base_response}\n\n{digest_content}"
+
+            elif intent == "CREATE_INVOICE":
+                res = self.pa_service.create_invoice(
+                    client_name=client_name_val,
+                    amount=invoice_amt_val,
+                    currency=invoice_curr_val,
+                    description=invoice_desc_val,
+                    client_email=to_email_val
+                )
+                if res.get("success"):
+                    final_reply = (
+                        f"🧾 *Invoice Generated Successfully!*\n\n"
+                        f"• *Invoice #*: `{res.get('invoice_number')}`\n"
+                        f"• *Client*: {res.get('client_name')}\n"
+                        f"• *Amount*: {res.get('amount')}\n"
+                        f"• *Due Date*: {res.get('due_date')}\n"
+                        f"🔗 *View/Print Invoice Doc*: {res.get('doc_url')}\n"
+                        f"📊 *Status*: Logged into 'Client Billing & Invoices' sheet."
+                    )
+                else:
+                    final_reply = f"⚠️ Failed to generate invoice: {res.get('error')}"
+
+            elif intent == "AUDIT_WEBSITE":
+                target_url = audit_url_val or user_text
+                res = self.pa_service.audit_website(target_url)
+                if res.get("success"):
+                    final_reply = (
+                        f"🔍 *Website Audit & Cold Pitch Generated!*\n\n"
+                        f"• *Target Domain*: `{res.get('domain')}`\n"
+                        f"• *Report Title*: {res.get('doc_title')}\n"
+                        f"🔗 *Open Full Audit & Pitch Doc*: {res.get('doc_url')}"
+                    )
+                else:
+                    final_reply = f"⚠️ Website audit failed: {res.get('error')}"
+
+            elif intent == "TECH_RADAR":
+                radar_content = self.pa_service.get_tech_radar()
+                final_reply = f"{base_response}\n\n{radar_content}"
 
             elif intent == "JOB_AGENT":
                 final_reply = f"🚀 Running Job Application Agent for you now...\n"

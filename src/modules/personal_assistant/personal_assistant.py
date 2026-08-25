@@ -18,6 +18,9 @@ from src.services.workspace_service import (
     trash_drive_file,
     list_workspace_files
 )
+from src.services.invoice_service import create_client_invoice
+from src.services.website_audit_service import audit_website_and_pitch
+from src.services.tech_radar_service import generate_tech_radar_briefing
 from src.services.ai_generator import generate_ai_content
 from src.services.telegram_service import send_telegram_message
 from openpyxl import Workbook, load_workbook
@@ -593,6 +596,37 @@ Return strict JSON:
             res_text += f"*{idx}. {name}*\n• 🔗 [Open File]({link})\n• *ID*: `{f_id}`\n\n"
 
         return res_text
+
+    def create_invoice(self, client_name: str, amount: str, currency: str = "USD", description: str = "Software Development Services", client_email: str = "") -> dict:
+        """
+        Creates a professional Google Doc invoice, logs billing in Google Sheets, and returns doc details.
+        """
+        if not self.docs_service or not self.sheets_service or not self.drive_service:
+            self.initialize_services()
+        return create_client_invoice(
+            self.docs_service,
+            self.sheets_service,
+            self.drive_service,
+            client_name=client_name,
+            amount=amount,
+            currency=currency,
+            description=description,
+            client_email=client_email
+        )
+
+    def audit_website(self, url: str) -> dict:
+        """
+        Scrapes website, performs AI audit, generates Google Doc report and cold pitch.
+        """
+        if not self.docs_service or not self.drive_service:
+            self.initialize_services()
+        return audit_website_and_pitch(self.docs_service, self.drive_service, url)
+
+    def get_tech_radar(self) -> str:
+        """
+        Generates daily executive AI Tech Radar briefing.
+        """
+        return generate_tech_radar_briefing()
 
 
 def run_morning_brief_agent(send_telegram: bool = True):
