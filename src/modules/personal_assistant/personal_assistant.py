@@ -43,6 +43,23 @@ class PersonalAssistantService:
             ).execute()
             messages = res.get("messages", [])
 
+            # Fallback search if query label:INBOX returns empty
+            if not messages and query == "label:INBOX":
+                res = self.gmail_service.users().messages().list(
+                    userId="me",
+                    q="in:inbox",
+                    maxResults=max_results
+                ).execute()
+                messages = res.get("messages", [])
+
+            if not messages:
+                res = self.gmail_service.users().messages().list(
+                    userId="me",
+                    q="",
+                    maxResults=max_results
+                ).execute()
+                messages = res.get("messages", [])
+
             email_data = []
             for msg_meta in messages:
                 msg = self.gmail_service.users().messages().get(

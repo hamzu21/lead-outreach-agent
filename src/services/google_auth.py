@@ -14,23 +14,21 @@ def get_google_services():
     """
     is_ci = os.getenv("CI") == "true" or bool(os.getenv("GITHUB_ACTIONS")) or os.getenv("AWS_EXECUTION_ENV") or True
 
-    # 1. Sync TOKEN_FILE from environment variable if provided
+    # 1. Sync TOKEN_FILE from environment variable if TOKEN_FILE does not exist
     token_env = os.getenv("GOOGLE_TOKEN_JSON", "").strip(' "\'\t\r\n')
-    if token_env and token_env.startswith("{"):
+    if token_env and token_env.startswith("{") and not os.path.exists(TOKEN_FILE):
         try:
             with open(TOKEN_FILE, "w", encoding="utf-8") as f:
                 f.write(token_env)
-            print(f"[Google Auth] Synced {TOKEN_FILE} from GOOGLE_TOKEN_JSON environment variable.")
         except Exception as e:
             print(f"[Google Auth] Warning writing TOKEN_FILE: {e}")
 
-    # 2. Sync CREDENTIALS_FILE from environment variable if provided
+    # 2. Sync CREDENTIALS_FILE from environment variable if CREDENTIALS_FILE does not exist
     creds_env = os.getenv("GOOGLE_CREDENTIALS_JSON", "").strip(' "\'\t\r\n')
-    if creds_env and creds_env.startswith("{"):
+    if creds_env and creds_env.startswith("{") and not os.path.exists(CREDENTIALS_FILE):
         try:
             with open(CREDENTIALS_FILE, "w", encoding="utf-8") as f:
                 f.write(creds_env)
-            print(f"[Google Auth] Synced {CREDENTIALS_FILE} from GOOGLE_CREDENTIALS_JSON environment variable.")
         except Exception as e:
             print(f"[Google Auth] Warning writing CREDENTIALS_FILE: {e}")
 

@@ -19,8 +19,32 @@ def main():
         f.write(token_json)
         
     print(f"✅ Fresh token saved to {TOKEN_FILE} successfully!")
-    print("\nBelow is your updated GOOGLE_TOKEN_JSON string for .env:\n")
-    print(token_json)
+    
+    # Automatically update .env file
+    env_file = ".env"
+    if os.path.exists(env_file):
+        try:
+            with open(env_file, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+            new_lines = []
+            updated = False
+            token_line = f"GOOGLE_TOKEN_JSON='{token_json}'\n"
+            for line in lines:
+                if line.startswith("GOOGLE_TOKEN_JSON="):
+                    new_lines.append(token_line)
+                    updated = True
+                else:
+                    new_lines.append(line)
+            if not updated:
+                new_lines.append(token_line)
+            with open(env_file, "w", encoding="utf-8") as f:
+                f.writelines(new_lines)
+            print("✅ Automatically updated GOOGLE_TOKEN_JSON in your local .env file!")
+        except Exception as e:
+            print(f"Warning updating .env file: {e}")
+
+    print("\nCopy the following token string for your AWS server .env:\n")
+    print(f"GOOGLE_TOKEN_JSON='{token_json}'")
 
 if __name__ == "__main__":
     main()
