@@ -348,7 +348,8 @@ Return strict JSON:
         """
         Smart recipient lookup. If given a full email address (e.g. 'zeusmr777@gmail.com'), returns it.
         If given a brand/name/keyword (e.g. 'duolingo', 'linkedin', 'rocketams'), queries Gmail
-        to find the most recent matching email and extracts the sender's exact email & subject!
+        to find the most recent matching email and extracts the recipient/sender email address,
+        automatically skipping the account owner's own email address.
         """
         cleaned_kw = (keyword_or_email or "").strip(' "\'\t\r\n')
         
@@ -363,36 +364,54 @@ Return strict JSON:
             if not self.gmail_service:
                 self.initialize_services()
             if self.gmail_service:
+                # Fetch user's own email address to prevent sending email to self
+                my_email = ""
+                try:
+                    prof = self.gmail_service.users().getProfile(userId="me").execute()
+                    my_email = prof.get("emailAddress", "").lower().strip()
+                except Exception:
+                    pass
+
                 res = self.gmail_service.users().messages().list(
                     userId="me",
                     q=search_q,
-                    maxResults=5
+                    maxResults=10
                 ).execute()
                 messages = res.get("messages", [])
                 
-                if messages:
+                for msg_meta in messages:
                     msg = self.gmail_service.users().messages().get(
                         userId="me",
-                        id=messages[0]["id"],
+                        id=msg_meta["id"],
                         format="full"
                     ).execute()
                     
                     headers = msg.get("payload", {}).get("headers", [])
                     sender_email = ""
+                    recipient_email = ""
                     subject_str = ""
                     for h in headers:
                         h_name = h.get("name", "").lower()
                         if h_name == "from":
                             sender_email = extract_clean_email(h.get("value", ""))
+                        elif h_name == "to":
+                            recipient_email = extract_clean_email(h.get("value", ""))
                         elif h_name == "subject":
                             subject_str = h.get("value", "")
                             
-                    if sender_email:
+                    # Target the email address that is NOT the account owner
+                    target_email = ""
+                    if sender_email and sender_email.lower() != my_email:
+                        target_email = sender_email
+                    elif recipient_email and recipient_email.lower() != my_email:
+                        target_email = recipient_email
+
+                    if target_email and "@" in target_email and target_email.lower() != my_email:
                         try:
-                            print(f"-> Smart resolved '{cleaned_kw}' to '{sender_email}'")
+                            print(f"-> Smart resolved '{cleaned_kw}' to target '{target_email}'")
                         except Exception:
                             pass
-                        return {"to_email": sender_email, "subject": subject_str}
+                        return {"to_email": target_email, "subject": subject_str}
         except Exception as e:
             print(f"[PersonalAssistant] Error resolving target email for '{cleaned_kw}': {e}")
 
