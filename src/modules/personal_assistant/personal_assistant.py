@@ -320,6 +320,33 @@ Return strict JSON:
             print(f"[PersonalAssistant] Error sending email to {to_email}: {e}")
             return {"success": False, "error": str(e)}
 
+    def reply_to_email(self, to_email: str, subject: str, instructions: str) -> dict:
+        """
+        Generates a smart AI response using Gemini based on user instructions,
+        and sends it directly to the target recipient email via Gmail API.
+        """
+        print(f"[PersonalAssistant] Generating AI reply for {to_email}...")
+        
+        reply_subject = subject if (subject and subject.startswith("Re:")) else f"Re: {subject or 'Your Inquiry'}"
+        
+        prompt = f"""
+You are an executive assistant composing a professional email response on behalf of Muhammad Hamza.
+
+Recipient Email: {to_email}
+Original Subject: {subject}
+User's Instructions for Reply: "{instructions}"
+
+Write a polished, professional, clear, and friendly email body text. Do not include markdown code block quotes, just the raw email text.
+"""
+        generated_body = generate_ai_content(prompt)
+        
+        # Send email via Gmail service
+        res = self.send_email(to_email=to_email, subject=reply_subject, body_text=generated_body)
+        if res.get("success"):
+            res["generated_body"] = generated_body
+            res["subject"] = reply_subject
+        return res
+
     def get_inbox_digest(self) -> str:
         """
         Categorizes inbox emails and builds a structured summary.
