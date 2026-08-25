@@ -28,12 +28,16 @@ def make_file_shareable(drive_service, file_id: str, make_public: bool = False) 
         print(f"[WorkspaceService] Warning getting file URL: {e}")
     return ""
 
+from src.services.formatting_cleaner import clean_text_for_doc
+
 def create_google_doc(docs_service, drive_service, title: str, content_text: str) -> dict:
     """
-    Creates a new Google Doc, inserts formatted text content, and returns document URL.
+    Creates a new Google Doc, inserts clean formatted text content without raw markdown symbols, and returns document URL.
     """
     if not docs_service:
         return {"success": False, "error": "Google Docs service unavailable"}
+
+    cleaned_content = clean_text_for_doc(content_text)
 
     try:
         # 1. Create document
@@ -42,12 +46,12 @@ def create_google_doc(docs_service, drive_service, title: str, content_text: str
         print(f"[WorkspaceService] Created Google Doc ID: {doc_id}")
 
         # 2. Insert content
-        if content_text:
+        if cleaned_content:
             requests = [
                 {
                     "insertText": {
                         "location": {"index": 1},
-                        "text": content_text
+                        "text": cleaned_content
                     }
                 }
             ]

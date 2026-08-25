@@ -4,9 +4,11 @@ from src.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
 TELEGRAM_API_BASE = os.getenv("TELEGRAM_API_BASE", "https://api.telegram.org").rstrip("/")
 
+from src.services.formatting_cleaner import clean_text_for_telegram
+
 def send_telegram_message(text: str, chat_id: str = None, parse_mode: str = "Markdown") -> bool:
     """
-    Sends a message to the specified Telegram chat using the Telegram Bot API.
+    Sends a message to the specified Telegram chat using the Telegram Bot API with clean formatting.
     """
     bot_token = (TELEGRAM_BOT_TOKEN or os.getenv("TELEGRAM_BOT_TOKEN", "")).strip(' "\'\t\r\n')
     target_chat = (chat_id or TELEGRAM_CHAT_ID or os.getenv("TELEGRAM_CHAT_ID", "")).strip(' "\'\t\r\n')
@@ -15,10 +17,12 @@ def send_telegram_message(text: str, chat_id: str = None, parse_mode: str = "Mar
         print("[Telegram] Warning: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not configured.")
         return False
 
+    cleaned_text = clean_text_for_telegram(text)
+
     url = f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage"
     payload = {
         "chat_id": target_chat,
-        "text": text,
+        "text": cleaned_text,
         "parse_mode": parse_mode
     }
 
