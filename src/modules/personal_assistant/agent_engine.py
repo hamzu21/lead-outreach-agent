@@ -52,7 +52,8 @@ If the user's message indicates an explicit intent to execute one of the followi
 21. TEACHING_STUDIO: User asks to generate lecture notes, assignment questions, slides outline, or solution keys for teaching/classes (e.g. "React Hooks par kal ki class ke liye 5 assignment questions aur answer key doc banao", "teaching package for Web Dev").
 22. BUDGET_DIRECTOR: User asks for financial health report, monthly savings advice, budget summary, or expense analytics (e.g. "mera monthly budget report dikhao", "financial health check", "savings report", "expense vs income breakdown").
 23. INTRODUCE_GUEST: User introduces a new guest, friend, client, or person to Zeyra (e.g. "Zeyra yeh mera dost Ali hai is se milo", "meet my client Sarah", "yeh meray brother Ahmed hain").
-24. GENERAL_CONVERSATION: User is asking a question, chatting, seeking advice, planning, or teaching guidance.
+24. WEB_SEARCH: User asks to search the web, google something, check live news, petrol prices, weather, stock market, articles, websites, or real-time internet information (e.g. "search web for latest Next.js 15 features", "google par search karo Pakistan petrol price today", "search web about AI news").
+25. GENERAL_CONVERSATION: User is asking a question, chatting, seeking advice, planning, or teaching guidance.
 """
 
 class ConversationalAgent:
@@ -411,6 +412,10 @@ Return JSON with format:
                     f"Hamza ne aap ke baare me bataya hai ({g_notes}). "
                     f"Aap jab bhi aayein, mujhse khule dil se baat kar sakte hain!"
                 )
+
+            elif intent == "WEB_SEARCH":
+                search_reply = self.pa_service.perform_web_search(user_text)
+                final_reply = f"{base_response}\n\n{search_reply}"
 
             # 3. Save User Message & Zeyra Response to SQLite Memory
             save_message(chat_id, "user", user_text)

@@ -681,6 +681,11 @@ Return strict JSON:
         from src.services.budget_service import generate_financial_health_report
         return generate_financial_health_report(self.sheets_service, self.drive_service)
 
+    def perform_web_search(self, query_or_url: str) -> str:
+        """Performs real-time live web browsing and search."""
+        from src.services.web_search_service import perform_realtime_web_browsing
+        return perform_realtime_web_browsing(query_or_url)
+
 
 def run_morning_brief_agent(send_telegram: bool = True):
     service = PersonalAssistantService()
