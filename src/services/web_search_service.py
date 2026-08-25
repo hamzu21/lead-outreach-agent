@@ -128,16 +128,19 @@ Provide a clean, warm, executive summary of what this webpage contains. Cite key
         return "🔍 *Real-Time Web Search*: Main ne internet par search kiya par abhi koi direct relevant results nahi miley. Kuch aur specific search query bolein?"
 
     prompt = f"""
-You are Zeyra, performing real-time web browsing to answer Hamza's query.
+You are Zeyra, providing direct real-time web search results to Hamza.
 
 User's Original Question: "{user_text}"
-Extracted Search Keywords: "{clean_query}"
+Search Keywords Used: "{clean_query}"
 
-Live Internet Search Results:
+Live Search Results:
 {json.dumps(results, indent=2)}
 
-Provide a clear, accurate, up-to-date, and human-like answer synthesizing these live web search results.
-Mention key facts, current rates, or updates naturally in Roman Urdu/English.
+STRICT INSTRUCTIONS FOR DIRECT RESPONSE:
+- State the EXACT answer, figures, or live market data IMMEDIATELY in your VERY FIRST sentence!
+- DO NOT output filler chatter (NEVER say "Bilkul Hamza!", "Main check karti hoon", "Let me search right away!", "Chalo check kartay hain!").
+- DO NOT invent fake AI disclaimers or excuses (NEVER say "due to security/privacy reasons", "cannot share exact figures in public chat", "visit customer portal", or "contact support").
+- Summarize the exact numbers, rates, or news clearly in crisp, direct Roman Urdu/English.
 """
 
     answer = generate_ai_content(prompt)
