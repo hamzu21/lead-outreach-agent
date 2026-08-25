@@ -5,46 +5,77 @@ from urllib.parse import quote_plus
 from src.services.ai_generator import generate_ai_content
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept-Language": "en-US,en;q=0.9"
 }
 
-def search_web(query: str, max_results: int = 5) -> dict:
+def extract_clean_search_query(user_text: str) -> str:
     """
-    Performs real-time web search using DuckDuckGo HTML API and returns search results.
+    Uses Gemini AI to extract an optimized, clean English search query
+    from conversational Roman Urdu or raw user input.
     """
-    encoded_query = quote_plus(query)
-    url = f"https://html.duckduckgo.com/html/?q={encoded_query}"
-    
+    prompt = f"""
+Convert this user's conversational message into a clean, concise, keyword-focused Google/web search query:
+User Message: "{user_text}"
+
+Rules:
+- Return ONLY the clean search query string (no explanation, no punctuation, no quotes).
+- Translate Roman Urdu or conversational phrases to effective search keywords.
+- Examples:
+  "aaj gold ka lya rate hai?" -> "gold price per tola today Pakistan"
+  "live new test kro" -> "latest breaking news Pakistan today"
+  "mere baare mein search krke dekho mr hamza dev" -> "mr hamza dev developer"
+  "search web for Next.js 15 features" -> "Next.js 15 features release"
+"""
     try:
-        response = requests.get(url, headers=HEADERS, timeout=12)
-        if response.status_code != 200:
-            return {"success": False, "error": f"Search HTTP {response.status_code}", "results": []}
-
-        soup = BeautifulSoup(response.text, "html.parser")
-        results = []
-
-        for result in soup.find_all("div", class_="result"):
-            if len(results) >= max_results:
-                break
-            
-            title_tag = result.find("a", class_="result__a")
-            snippet_tag = result.find("a", class_="result__snippet")
-            
-            if title_tag:
-                title = title_tag.get_text(strip=True)
-                link = title_tag.get("href", "")
-                snippet = snippet_tag.get_text(strip=True) if snippet_tag else ""
-                
-                results.append({
-                    "title": title,
-                    "link": link,
-                    "snippet": snippet
-                })
-
-        return {"success": True, "query": query, "results": results}
+        clean_q = generate_ai_content(prompt).strip().strip('"').strip("'")
+        return clean_q if clean_q else user_text
     except Exception as e:
-        print(f"[WebSearchService] Search error: {e}")
-        return {"success": False, "error": str(e), "results": []}
+        print(f"[WebSearch] Error extracting query: {e}")
+        return user_text
+
+def search_duckduckgo_lite(query: str, max_results: int = 5) -> list:
+    """
+    Scrapes DuckDuckGo Lite HTML for lightweight, high-reliability search results.
+    """
+    results = []
+    try:
+        url = "https://lite.duckduckgo.com/lite/"
+        res = requests.post(url, data={"q": query}, headers=HEADERS, timeout=10)
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.text, "html.parser")
+            snippets = soup.find_all("td", class_="result-snippet")
+            links = soup.find_all("a", class_="result-link")
+            
+            for i in range(min(len(links), max_results)):
+                t = links[i].get_text(strip=True)
+                l = links[i].get("href", "")
+                s = snippets[i].get_text(strip=True) if i < len(snippets) else ""
+                results.append({"title": t, "link": l, "snippet": s})
+    except Exception as e:
+        print(f"[WebSearch] DuckDuckGo Lite search error: {e}")
+    return results
+
+def search_google_news_rss(query: str, max_results: int = 5) -> list:
+    """
+    Queries Google News RSS Feed for live news, market rates, and current events.
+    """
+    results = []
+    try:
+        encoded_q = quote_plus(query)
+        url = f"https://news.google.com/rss/search?q={encoded_q}&hl=en-PK&gl=PK&ceid=PK:en"
+        res = requests.get(url, headers=HEADERS, timeout=10)
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.text, "xml")
+            items = soup.find_all("item")
+            for item in items[:max_results]:
+                title = item.title.get_text(strip=True) if item.title else "News Article"
+                link = item.link.get_text(strip=True) if item.link else ""
+                desc = item.description.get_text(strip=True) if item.description else title
+                results.append({"title": title, "link": link, "snippet": desc})
+    except Exception as e:
+        print(f"[WebSearch] Google News RSS error: {e}")
+    return results
 
 def fetch_webpage_text(url: str, max_chars: int = 3000) -> str:
     """
@@ -64,39 +95,49 @@ def fetch_webpage_text(url: str, max_chars: int = 3000) -> str:
     except Exception as e:
         return f"Error fetching webpage: {e}"
 
-def perform_realtime_web_browsing(query_or_url: str) -> str:
+def perform_realtime_web_browsing(user_text: str) -> str:
     """
-    Performs real-time web search/browsing and uses Gemini AI to synthesize a crisp, human answer.
+    Extracts search query, queries DuckDuckGo & Google News, and generates a warm, synthesized answer.
     """
-    is_url = query_or_url.startswith("http://") or query_or_url.startswith("https://")
+    is_url = user_text.strip().startswith("http://") or user_text.strip().startswith("https://")
     
     if is_url:
-        page_text = fetch_webpage_text(query_or_url)
+        target_url = user_text.strip()
+        page_text = fetch_webpage_text(target_url)
         prompt = f"""
 You are Zeyra, reading a live webpage in real-time for Hamza.
 
-Webpage URL: {query_or_url}
+Webpage URL: {target_url}
 Webpage Content Snippet:
 {page_text}
 
 Provide a clean, warm, executive summary of what this webpage contains. Cite key takeaways clearly.
 """
-    else:
-        search_res = search_web(query_or_url)
-        results = search_res.get("results", [])
-        
-        if not results:
-            return "🔍 *Real-Time Web Search*: Main ne internet par search kiya par abhi koi direct relevant results nahi miley. Kuch aur query search karoon?"
+        return generate_ai_content(prompt)
 
-        prompt = f"""
+    # 1. Extract clean Google search query from user text
+    clean_query = extract_clean_search_query(user_text)
+    print(f"[WebSearch] Original User Input: '{user_text}' -> Extracted Query: '{clean_query}'")
+
+    # 2. Perform search via DuckDuckGo Lite & Google News RSS
+    results = search_duckduckgo_lite(clean_query, max_results=5)
+    if not results:
+        results = search_google_news_rss(clean_query, max_results=5)
+
+    if not results:
+        return "🔍 *Real-Time Web Search*: Main ne internet par search kiya par abhi koi direct relevant results nahi miley. Kuch aur specific search query bolein?"
+
+    prompt = f"""
 You are Zeyra, performing real-time web browsing to answer Hamza's query.
 
-User Query: "{query_or_url}"
+User's Original Question: "{user_text}"
+Extracted Search Keywords: "{clean_query}"
 
-Real-Time Web Search Results:
+Live Internet Search Results:
 {json.dumps(results, indent=2)}
 
-Provide a clear, accurate, up-to-date, and human-like answer synthesizing these live web search results. Cite key sources/links if relevant.
+Provide a clear, accurate, up-to-date, and human-like answer synthesizing these live web search results.
+Mention key facts, current rates, or updates naturally in Roman Urdu/English.
 """
 
     answer = generate_ai_content(prompt)
