@@ -3,7 +3,7 @@ import subprocess
 import datetime
 from googleapiclient.http import MediaFileUpload
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
@@ -17,7 +17,7 @@ def generate_invoice_number() -> str:
 
 def generate_latex_invoice_source(invoice_num: str, client_name: str, client_email: str, amount_str: str, description: str, issue_date: str, due_date: str) -> str:
     """
-    Generates pristine LaTeX source code for the invoice.
+    Generates pristine LaTeX source code for the invoice with logo.
     """
     c_email = client_email if client_email else 'Client Contact'
     return f"""\\documentclass[11pt,a4paper]{{article}}
@@ -28,6 +28,7 @@ def generate_latex_invoice_source(invoice_num: str, client_name: str, client_ema
 \\usepackage{{booktabs}}
 \\usepackage{{array}}
 \\usepackage{{helvet}}
+\\usepackage{{graphicx}}
 \\renewcommand{{\\familydefault}}{{\\sfdefault}}
 
 \\definecolor{{navy}}{{RGB}}{{16, 44, 87}}
@@ -39,6 +40,7 @@ def generate_latex_invoice_source(invoice_num: str, client_name: str, client_ema
 \\begin{{document}}
 
 \\begin{{minipage}}{{0.5\\textwidth}}
+    \\includegraphics[width=1.8cm]{{assets/logo.png}} \\\\[6pt]
     {{\\Huge \\bfseries \\color{{navy}} INVOICE}} \\\\[4pt]
     {{\\color{{gray}} \\#{invoice_num}}}
 \\end{{minipage}}
@@ -102,7 +104,7 @@ def generate_latex_invoice_source(invoice_num: str, client_name: str, client_ema
 
 def generate_reportlab_pdf_invoice(pdf_path: str, invoice_num: str, client_name: str, client_email: str, amount_str: str, description: str, issue_date: str, due_date: str):
     """
-    Compiles a high-precision, beautifully styled PDF invoice using ReportLab.
+    Compiles a high-precision, beautifully styled PDF invoice using ReportLab with official MH logo.
     """
     doc = SimpleDocTemplate(pdf_path, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
     story = []
@@ -116,8 +118,19 @@ def generate_reportlab_pdf_invoice(pdf_path: str, invoice_num: str, client_name:
     body_style = ParagraphStyle("BodyText", parent=styles["Normal"], fontName="Helvetica", fontSize=10, leading=14)
     total_style = ParagraphStyle("TotalText", parent=styles["Heading2"], fontName="Helvetica-Bold", fontSize=16, leading=20, alignment=2, textColor=colors.HexColor("#102C57"))
 
+    # Logo element
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    logo_path = os.path.join(base_dir, "assets", "logo.png")
+    
+    if os.path.exists(logo_path):
+        logo_img = RLImage(logo_path, width=48, height=48)
+        left_cell = Table([[logo_img, Paragraph("<b>INVOICE</b>", title_style)]], colWidths=[55, 215])
+        left_cell.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('LEFTPADDING', (0,0), (-1,-1), 0)]))
+    else:
+        left_cell = Paragraph("<b>INVOICE</b>", title_style)
+
     header_data = [
-        [Paragraph("<b>INVOICE</b>", title_style), Paragraph("<b>Muhammad Hamza</b><br/>Full-Stack & AI Solutions Engineer<br/>misterhamza117@gmail.com", sender_style)],
+        [left_cell, Paragraph("<b>Muhammad Hamza</b><br/>Full-Stack & AI Solutions Engineer<br/>misterhamza117@gmail.com", sender_style)],
         [Paragraph(f"<b>Invoice #:</b> {invoice_num}", inv_num_style), Paragraph("", body_style)]
     ]
     header_table = Table(header_data, colWidths=[270, 270])

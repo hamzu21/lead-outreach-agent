@@ -1,0 +1,80 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{utf8}
+\usepackage[margin=1in]{geometry}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{helvet}
+\usepackage{graphicx}
+\renewcommand{\familydefault}{\sfdefault}
+
+\definecolor{navy}{RGB}{16, 44, 87}
+\definecolor{accent}{RGB}{53, 162, 159}
+\definecolor{lightgray}{RGB}{245, 247, 250}
+
+\pagestyle{empty}
+
+\begin{document}
+
+\begin{minipage}{0.5\textwidth}
+    \includegraphics[width=1.8cm]{assets/logo.png} \\[6pt]
+    {\Huge \bfseries \color{navy} INVOICE} \\[4pt]
+    {\color{gray} \#INV-20260826-0057}
+\end{minipage}
+\begin{minipage}{0.5\textwidth}
+    \begin{flushright}
+        {\Large \bfseries Muhammad Hamza} \\[2pt]
+        Full-Stack \& AI Solutions Engineer \\
+        misterhamza117@gmail.com \\
+        Islamabad, Pakistan
+    \end{flushright}
+\end{minipage}
+
+\vspace{1.5em}
+\hrule height 1.5pt
+\vspace{1.5em}
+
+\begin{minipage}{0.5\textwidth}
+    {\bfseries \color{navy} BILLED TO:} \\[4pt]
+    {\Large \bfseries Alex} \\[2pt]
+    Client Contact
+\end{minipage}
+\begin{minipage}{0.5\textwidth}
+    \begin{flushright}
+        \begin{tabular}{ll}
+            \textbf{Issue Date:} & August 26, 2026 \\
+            \textbf{Due Date:} & September 09, 2026 \\
+            \textbf{Payment Status:} & UNPAID
+        \end{tabular}
+    \end{flushright}
+\end{minipage}
+
+\vspace{2em}
+
+\begin{tabular}{p{10cm}r}
+    \hline
+    \textbf{DESCRIPTION} & \textbf{AMOUNT} \\
+    \hline
+    Software Development Services with official MH logo & \textbf{$500} \\[1em]
+    \hline
+\end{tabular}
+
+\vspace{1.5em}
+
+\begin{flushright}
+    {\Large \textbf{Total Amount Due:} \quad \textbf{$500}}
+\end{flushright}
+
+\vspace{3em}
+
+\textbf{PAYMENT INSTRUCTIONS} \\[4pt]
+• Accepted Methods: Bank Wire Transfer, Payoneer, Wise. \\
+• Email receipt confirmation to \textbf{misterhamza117@gmail.com} after transfer.
+
+\vfill
+\begin{center}
+    {\color{gray} Thank you for your business!}
+\end{center}
+
+\end{document}
