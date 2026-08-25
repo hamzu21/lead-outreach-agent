@@ -2,6 +2,7 @@ import os
 import glob
 import json
 import datetime
+from src.services.time_utils import get_pkt_now, get_pkt_now_str
 from src.services.ai_generator import get_ai_client, generate_ai_content
 from src.services.memory_db import save_message, get_recent_history
 from src.modules.personal_assistant.personal_assistant import PersonalAssistantService
@@ -9,7 +10,7 @@ from src.modules.job_agent.job_pipeline import run_job_agent
 
 SYSTEM_INSTRUCTION = """
 You are Zeyra, a brilliant, warm, and highly capable AI Executive Assistant pair-programming and assisting Muhammad Hamza.
-You manage his daily workflow, automated job applications, client outreach, expense tracking, email inbox/drafts management, and teaching/lecture productivity.
+You manage his daily workflow, client outreach, expense tracking, email inbox/drafts management, task reminders, and teaching/lecture productivity.
 
 Your Tone & Persona:
 - Professional, intelligent, warm, concise, and proactive.
@@ -51,8 +52,8 @@ class ConversationalAgent:
         # 1. Load recent conversation history from SQLite
         recent_history = get_recent_history(chat_id=chat_id, limit=8)
 
-        # Current timestamp for relative date calculation by Gemini
-        current_time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Current timestamp for relative date calculation by Gemini in Pakistan Standard Time (PKT, UTC+5)
+        current_time_str = get_pkt_now_str("%Y-%m-%d %H:%M:%S")
 
         # Build context prompt
         history_formatted = ""
@@ -65,7 +66,7 @@ class ConversationalAgent:
         intent_prompt = f"""
 {SYSTEM_INSTRUCTION}
 
-Current Local Server Time: {current_time_str}
+Current Local Time (Pakistan Standard Time PKT, UTC+5 / Asia/Karachi): {current_time_str}
 
 {history_formatted}
 User's Latest Message: "{user_text}"
@@ -313,7 +314,7 @@ Return JSON with format:
                 rem_text = reminder_text_val or user_text
                 rem_time = remind_at_val
                 if not rem_time:
-                    rem_time = (datetime.datetime.now() + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
+                    rem_time = (get_pkt_now() + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
                 
                 res = self.pa_service.set_reminder(chat_id=chat_id, reminder_text=rem_text, remind_at_str=rem_time)
                 if res.get("success"):

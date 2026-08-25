@@ -48,16 +48,18 @@ def add_reminder(chat_id: str, reminder_text: str, remind_at_str: str) -> dict:
         "remind_at": remind_at_str
     }
 
+from src.services.time_utils import get_pkt_now_str
+
 def get_due_reminders() -> List[Dict]:
     """
-    Fetches all pending reminders where remind_at is past or equal to current time.
+    Fetches all pending reminders where remind_at is past or equal to current PKT time.
     """
     init_reminders_db()
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_str = get_pkt_now_str("%Y-%m-%d %H:%M:%S")
     cursor.execute(
         "SELECT id, chat_id, reminder_text, remind_at FROM reminders WHERE status = 'PENDING' AND remind_at <= ?",
         (now_str,)

@@ -10,9 +10,11 @@ from reportlab.lib import colors
 from src.services.workspace_service import create_google_doc, create_styled_spreadsheet, update_spreadsheet_data, make_file_shareable
 from src.services.gmail_service import send_gmail_message
 
+from src.services.time_utils import get_pkt_now
+
 def generate_invoice_number() -> str:
     """Generates a clean timestamped invoice ID like INV-20260826-101"""
-    now = datetime.datetime.now()
+    now = get_pkt_now()
     return f"INV-{now.strftime('%Y%m%d')}-{now.strftime('%H%M')}"
 
 def generate_latex_invoice_source(invoice_num: str, client_name: str, client_email: str, amount_str: str, description: str, issue_date: str, due_date: str) -> str:
@@ -192,8 +194,9 @@ def create_client_invoice(docs_service, sheets_service, drive_service, gmail_ser
     logs billing in Google Sheets, and optionally emails the PDF attachment directly to the client.
     """
     invoice_num = generate_invoice_number()
-    issue_date = datetime.datetime.now().strftime("%B %d, %Y")
-    due_date = (datetime.datetime.now() + datetime.timedelta(days=14)).strftime("%B %d, %Y")
+    now = get_pkt_now()
+    issue_date = now.strftime("%B %d, %Y")
+    due_date = (now + datetime.timedelta(days=14)).strftime("%B %d, %Y")
 
     clean_amt = str(amount).replace("$", "").replace("USD", "").replace("PKR", "").replace("RS", "").strip()
     if not clean_amt:
