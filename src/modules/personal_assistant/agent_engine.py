@@ -8,14 +8,18 @@ from src.services.memory_db import save_message, get_recent_history
 from src.modules.personal_assistant.personal_assistant import PersonalAssistantService
 from src.modules.job_agent.job_pipeline import run_job_agent
 
-SYSTEM_INSTRUCTION = """
-You are Zeyra, a brilliant, warm, and highly capable AI Executive Assistant pair-programming and assisting Muhammad Hamza.
-You manage his daily workflow, client outreach, expense tracking, email inbox/drafts management, task reminders, and teaching/lecture productivity.
+from src.services.user_profile_service import get_or_create_user_profile, register_guest_introduction, update_user_profile
 
-Your Tone & Persona:
-- Professional, intelligent, warm, concise, and proactive.
-- Speak naturally like a high-level personal voice assistant.
-- You have persistent memory of past conversation turns.
+SYSTEM_INSTRUCTION = """
+You are Zeyra, a warm, brilliant, empathetic, witty, and deeply human-like AI Companion and Chief of Staff assisting Muhammad Hamza and his guests.
+
+Your Living Human Persona Rules:
+- Talk like a REAL HUMAN partner and trusted friend! Speak naturally in warm, conversational Roman Urdu and English.
+- Use natural human expressions (e.g., "Suno Hamza...", "Wah bilkul zabardast!", "Arre bilkul tension na lo, main handling kar leti hoon", "Assalam-o-Alaikum! Main Zeyra hoon").
+- Show empathy, warmth, humor, and active listening.
+- NEVER talk like a robotic machine or give AI disclaimers (NEVER say "As an AI language model...", "System intent:", or "Executing action tool:").
+- Remember facts about Hamza's life, friends, preferences, and conversations.
+- MULTI-USER & GUESTS: If Hamza introduces a friend, client, or family member (e.g., "Zeyra yeh mera dost Ali hai"), greet them warmly by name, converse with them like a friendly human host, and remember facts about them!
 
 CRITICAL TEXT FORMATTING RULES (STRICTLY ENFORCED):
 - NEVER output double asterisks `**`, raw headers `###`, or horizontal lines `---`.
@@ -47,7 +51,8 @@ If the user's message indicates an explicit intent to execute one of the followi
 20. FOCUS_OPTIMIZER: User mentions daily energy levels, fatigue, focus, or asks for daily energy schedule optimization (e.g. "aaj mera mood thaka hua hai", "low energy lag rahi hai focus schedule banao", "optimize my focus for today").
 21. TEACHING_STUDIO: User asks to generate lecture notes, assignment questions, slides outline, or solution keys for teaching/classes (e.g. "React Hooks par kal ki class ke liye 5 assignment questions aur answer key doc banao", "teaching package for Web Dev").
 22. BUDGET_DIRECTOR: User asks for financial health report, monthly savings advice, budget summary, or expense analytics (e.g. "mera monthly budget report dikhao", "financial health check", "savings report", "expense vs income breakdown").
-23. GENERAL_CONVERSATION: User is asking a question, chatting, seeking advice, planning, or teaching guidance.
+23. INTRODUCE_GUEST: User introduces a new guest, friend, client, or person to Zeyra (e.g. "Zeyra yeh mera dost Ali hai is se milo", "meet my client Sarah", "yeh meray brother Ahmed hain").
+24. GENERAL_CONVERSATION: User is asking a question, chatting, seeking advice, planning, or teaching guidance.
 """
 
 class ConversationalAgent:
@@ -59,7 +64,13 @@ class ConversationalAgent:
         Processes a natural language message from the user, retrieves recent chat memory,
         evaluates tool intent or conversational reply, and saves state to SQLite memory.
         """
-        # 1. Load recent conversation history from SQLite
+        # 1. Load user profile context
+        user_profile = get_or_create_user_profile(chat_id)
+        user_name = user_profile.get("name", "Friend")
+        user_rel = user_profile.get("relationship", "Guest")
+        user_notes = user_profile.get("notes", "")
+
+        # 2. Load recent conversation history from SQLite
         recent_history = get_recent_history(chat_id=chat_id, limit=8)
 
         # Current timestamp for relative date calculation by Gemini in Pakistan Standard Time (PKT, UTC+5)
@@ -70,16 +81,21 @@ class ConversationalAgent:
         if recent_history:
             history_formatted = "\nConversation History:\n"
             for msg in recent_history:
-                role_label = "User" if msg["role"] == "user" else "Zeyra"
+                role_label = user_name if msg["role"] == "user" else "Zeyra"
                 history_formatted += f"{role_label}: {msg['content']}\n"
 
         intent_prompt = f"""
 {SYSTEM_INSTRUCTION}
 
+Active Speaker Profile:
+• Name: {user_name}
+• Relationship: {user_rel}
+• Stored Personal Notes: {user_notes if user_notes else 'None recorded yet'}
+
 Current Local Time (Pakistan Standard Time PKT, UTC+5 / Asia/Karachi): {current_time_str}
 
 {history_formatted}
-User's Latest Message: "{user_text}"
+{user_name}'s Latest Message: "{user_text}"
 
 Analyze the user's message and determine if an action tool is required.
 Return JSON with format:
@@ -380,6 +396,21 @@ Return JSON with format:
             elif intent == "BUDGET_DIRECTOR":
                 report = self.pa_service.get_financial_health_report()
                 final_reply = f"{base_response}\n\n{report}"
+
+            elif intent == "INTRODUCE_GUEST":
+                guest_info = register_guest_introduction(chat_id, user_text)
+                g_name = guest_info.get("name", "Guest")
+                g_rel = guest_info.get("relationship", "Friend")
+                g_notes = guest_info.get("notes", "")
+                
+                update_user_profile(chat_id, new_note=f"Introduced {g_name} ({g_rel}: {g_notes})")
+                
+                final_reply = (
+                    f"Assalam-o-Alaikum {g_name}! 🌟\n\n"
+                    f"Aap se mil kar bohot khushi hui! Main Zeyra hoon, Hamza ki AI partner aur executive assistant. "
+                    f"Hamza ne aap ke baare me bataya hai ({g_notes}). "
+                    f"Aap jab bhi aayein, mujhse khule dil se baat kar sakte hain!"
+                )
 
             # 3. Save User Message & Zeyra Response to SQLite Memory
             save_message(chat_id, "user", user_text)
