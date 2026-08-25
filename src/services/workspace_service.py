@@ -1,22 +1,23 @@
 import os
 import json
 
-def make_file_shareable(drive_service, file_id: str) -> str:
+def make_file_shareable(drive_service, file_id: str, make_public: bool = False) -> str:
     """
-    Sets Google Drive file permission so anyone with link can view/edit,
-    and returns the webViewLink URL.
+    Returns the Google Drive webViewLink URL.
+    By default (make_public=False), the file remains 100% PRIVATE to the owner account.
     """
     try:
         if drive_service:
-            permission = {
-                'type': 'anyone',
-                'role': 'writer',
-            }
-            drive_service.permissions().create(
-                fileId=file_id,
-                body=permission,
-                fields='id',
-            ).execute()
+            if make_public:
+                permission = {
+                    'type': 'anyone',
+                    'role': 'writer',
+                }
+                drive_service.permissions().create(
+                    fileId=file_id,
+                    body=permission,
+                    fields='id',
+                ).execute()
 
             file_info = drive_service.files().get(
                 fileId=file_id,
@@ -24,7 +25,7 @@ def make_file_shareable(drive_service, file_id: str) -> str:
             ).execute()
             return file_info.get("webViewLink", "")
     except Exception as e:
-        print(f"[WorkspaceService] Warning setting file sharing permission: {e}")
+        print(f"[WorkspaceService] Warning getting file URL: {e}")
     return ""
 
 def create_google_doc(docs_service, drive_service, title: str, content_text: str) -> dict:
