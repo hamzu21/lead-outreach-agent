@@ -95,6 +95,40 @@ def start_health_server():
     t = threading.Thread(target=run_server, daemon=True)
     t.start()
 
+from src.services.reminder_service import get_due_reminders, mark_reminder_sent
+
+def start_reminder_scheduler_thread():
+    """
+    Background daemon thread that checks SQLite for due scheduled reminders every 15 seconds,
+    and dispatches Telegram alerts when due.
+    """
+    def reminder_loop():
+        print("[Reminder Scheduler] Background scheduler initialized and active (polling every 15s)...")
+        while True:
+            try:
+                due = get_due_reminders()
+                for r in due:
+                    r_id = r["id"]
+                    r_chat_id = r["chat_id"]
+                    r_text = r["reminder_text"]
+                    r_time = r["remind_at"]
+                    
+                    alert_msg = (
+                        f"⏰ *SCHEDULED REMINDER ALERT!* ⏰\n\n"
+                        f"📌 *Task / Reminder*: {r_text}\n"
+                        f"🕒 *Scheduled Time*: `{r_time}`\n\n"
+                        f"_(Reminder ID #{r_id} triggered automatically)_"
+                    )
+                    success = send_telegram_message(alert_msg, chat_id=r_chat_id)
+                    if success:
+                        mark_reminder_sent(r_id)
+            except Exception as e:
+                print(f"[Reminder Scheduler] Notice: {e}")
+            time.sleep(15)
+
+    t = threading.Thread(target=reminder_loop, daemon=True)
+    t.start()
+
 from src.modules.personal_assistant.agent_engine import ConversationalAgent
 from src.services.memory_db import clear_history
 
@@ -107,6 +141,7 @@ def run_telegram_bot_loop():
         return
 
     start_health_server()
+    start_reminder_scheduler_thread()
     print("🤖 Starting Zeyra Conversational AI Agent on Telegram...")
     print("Send any conversational message or commands to your bot in Telegram.")
     

@@ -1,6 +1,7 @@
 import os
 import glob
 import json
+import datetime
 from src.services.ai_generator import get_ai_client, generate_ai_content
 from src.services.memory_db import save_message, get_recent_history
 from src.modules.personal_assistant.personal_assistant import PersonalAssistantService
@@ -33,7 +34,9 @@ If the user's message indicates an explicit intent to execute one of the followi
 13. CREATE_INVOICE: User asks to generate, create, or email/send an invoice, bill, or receipt (e.g. "Client Alex ko $700 ka invoice bana kar bhejo", "invoice client ko bhejo", "send invoice to alex@example.com", "invoice email karo"). CRITICAL RULE: ANY message mentioning 'invoice', 'receipt', 'bill', or sending an invoice MUST ALWAYS be classified as CREATE_INVOICE!
 14. AUDIT_WEBSITE: User asks to scan, audit, or analyze a website URL and generate a sales pitch (e.g. "https://example.com ki website audit karo aur pitch doc banao", "audit website acme.com").
 15. TECH_RADAR: User asks to view daily tech trends, tech radar, or micro-SaaS ideas (e.g. "show tech radar", "aaj ke micro-saas ideas dekho", "what are top trending client tech stacks").
-16. GENERAL_CONVERSATION: User is asking a question, chatting, seeking advice, planning, or teaching guidance.
+16. SET_REMINDER: User asks to set, schedule, or create a reminder, alarm, or task alert for a specific date or time (e.g. "flaani date ko mjhe yaad dilana", "28 August ko 3 PM par bill pay karne ka reminder lagao", "remind me in 2 hours to call client").
+17. LIST_REMINDERS: User asks to view, check, or list active pending reminders (e.g. "show my reminders", "mere kon kon se reminders scheduled hain").
+18. GENERAL_CONVERSATION: User is asking a question, chatting, seeking advice, planning, or teaching guidance.
 """
 
 class ConversationalAgent:
@@ -48,6 +51,9 @@ class ConversationalAgent:
         # 1. Load recent conversation history from SQLite
         recent_history = get_recent_history(chat_id=chat_id, limit=8)
 
+        # Current timestamp for relative date calculation by Gemini
+        current_time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
         # Build context prompt
         history_formatted = ""
         if recent_history:
@@ -59,13 +65,15 @@ class ConversationalAgent:
         intent_prompt = f"""
 {SYSTEM_INSTRUCTION}
 
+Current Local Server Time: {current_time_str}
+
 {history_formatted}
 User's Latest Message: "{user_text}"
 
 Analyze the user's message and determine if an action tool is required.
 Return JSON with format:
 {{
-  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "REPLY_EMAIL" | "JOB_AGENT" | "CREATE_DOC" | "CREATE_SHEET" | "MANAGE_WORKSPACE_FILE" | "LIST_WORKSPACE_FILES" | "CREATE_INVOICE" | "AUDIT_WEBSITE" | "TECH_RADAR" | "GENERAL_CONVERSATION",
+  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "REPLY_EMAIL" | "JOB_AGENT" | "CREATE_DOC" | "CREATE_SHEET" | "MANAGE_WORKSPACE_FILE" | "LIST_WORKSPACE_FILES" | "CREATE_INVOICE" | "AUDIT_WEBSITE" | "TECH_RADAR" | "SET_REMINDER" | "LIST_REMINDERS" | "GENERAL_CONVERSATION",
   "expense_details": "Extracted expense text if intent is EXPENSE_LOG, else empty string",
   "draft_id": "Extracted draft ID if intent is SEND_DRAFT, else empty string",
   "to_email": "Extracted recipient email address, brand name, or sender keyword (e.g. 'duolingo', 'zeusmr777@gmail.com', 'linkedin') if intent is SEND_EMAIL or REPLY_EMAIL, else empty string",
@@ -80,6 +88,8 @@ Return JSON with format:
   "invoice_desc": "Extracted work description if intent is CREATE_INVOICE, default 'Software Development Services'",
   "send_invoice_email": true if user asks to email or send the invoice to client email, else false,
   "audit_url": "Extracted website URL if intent is AUDIT_WEBSITE, else empty string",
+  "reminder_text": "Extracted task description if intent is SET_REMINDER, else empty string",
+  "remind_at_datetime": "Calculated target date and time in format 'YYYY-MM-DD HH:MM:SS' based on user's instruction and Current Local Server Time if intent is SET_REMINDER, else empty string",
   "response": "Your direct, conversational response to the user. If an action tool will be executed, write a brief friendly intro."
 }}
 """
@@ -113,6 +123,8 @@ Return JSON with format:
             invoice_desc_val = res_data.get("invoice_desc", "Software Development Services").strip()
             send_invoice_email_val = bool(res_data.get("send_invoice_email", False))
             audit_url_val = res_data.get("audit_url", "").strip()
+            reminder_text_val = res_data.get("reminder_text", "").strip()
+            remind_at_val = res_data.get("remind_at_datetime", "").strip()
 
             final_reply = base_response
 
@@ -296,6 +308,28 @@ Return JSON with format:
 
             elif intent == "JOB_AGENT":
                 final_reply = "🛑 *Job Application Agent is currently disabled* as per your request. If you ever want to re-enable it in the future, just let me know!"
+
+            elif intent == "SET_REMINDER":
+                rem_text = reminder_text_val or user_text
+                rem_time = remind_at_val
+                if not rem_time:
+                    rem_time = (datetime.datetime.now() + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
+                
+                res = self.pa_service.set_reminder(chat_id=chat_id, reminder_text=rem_text, remind_at_str=rem_time)
+                if res.get("success"):
+                    final_reply = (
+                        f"⏰ *Reminder Scheduled Successfully!*\n\n"
+                        f"• *Reminder*: {res.get('reminder_text')}\n"
+                        f"• *Scheduled Time*: `{res.get('remind_at')}`\n"
+                        f"• *ID*: #{res.get('id')}\n\n"
+                        f"_(I will send you an automatic alert message in this chat at the exact scheduled time!)_"
+                    )
+                else:
+                    final_reply = f"⚠️ Could not schedule reminder: {res.get('error')}"
+
+            elif intent == "LIST_REMINDERS":
+                digest_content = self.pa_service.get_reminders_digest(chat_id)
+                final_reply = f"{base_response}\n\n{digest_content}"
 
             # 3. Save User Message & Zeyra Response to SQLite Memory
             save_message(chat_id, "user", user_text)

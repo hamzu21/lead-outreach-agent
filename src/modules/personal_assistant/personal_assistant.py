@@ -631,6 +631,27 @@ Return strict JSON:
         """
         return generate_tech_radar_briefing()
 
+    def set_reminder(self, chat_id: str, reminder_text: str, remind_at_str: str) -> dict:
+        """
+        Saves a reminder to SQLite database for background trigger.
+        """
+        from src.services.reminder_service import add_reminder
+        return add_reminder(chat_id=chat_id, reminder_text=reminder_text, remind_at_str=remind_at_str)
+
+    def get_reminders_digest(self, chat_id: str) -> str:
+        """
+        Gets list of active pending reminders for Telegram output.
+        """
+        from src.services.reminder_service import get_pending_reminders
+        reminders = get_pending_reminders(chat_id)
+        if not reminders:
+            return "⏰ *Reminders*: No active pending reminders found."
+        
+        msg = f"⏰ *Your Pending Scheduled Reminders ({len(reminders)})*:\n\n"
+        for idx, r in enumerate(reminders, start=1):
+            msg += f"*{idx}. {r['reminder_text']}*\n• 📅 *Scheduled For*: `{r['remind_at']}` (ID: #{r['id']})\n\n"
+        return msg
+
 
 def run_morning_brief_agent(send_telegram: bool = True):
     service = PersonalAssistantService()
