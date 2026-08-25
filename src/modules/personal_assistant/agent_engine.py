@@ -37,7 +37,12 @@ If the user's message indicates an explicit intent to execute one of the followi
 15. TECH_RADAR: User asks to view daily tech trends, tech radar, or micro-SaaS ideas (e.g. "show tech radar", "aaj ke micro-saas ideas dekho", "what are top trending client tech stacks").
 16. SET_REMINDER: User asks to set, schedule, or create a reminder, alarm, or task alert for a specific date or time (e.g. "flaani date ko mjhe yaad dilana", "28 August ko 3 PM par bill pay karne ka reminder lagao", "remind me in 2 hours to call client").
 17. LIST_REMINDERS: User asks to view, check, or list active pending reminders (e.g. "show my reminders", "mere kon kon se reminders scheduled hain").
-18. GENERAL_CONVERSATION: User is asking a question, chatting, seeking advice, planning, or teaching guidance.
+18. SAVE_MIND_VAULT: User asks to remember, save, store, or record a personal note, password, vehicle maintenance, warranty, or fact in their second brain / mind vault (e.g. "gari ka oil 45000km par change karwaya tha", "wifi password XYZ hai", "laptop serial number ABC-123 remember rakho").
+19. QUERY_MIND_VAULT: User asks to recall, find, search, or check stored facts from their second brain / mind vault (e.g. "gari ka oil kab change karwaya था", "wifi password kya tha", "laptop serial number kya tha", "mind vault check karo").
+20. FOCUS_OPTIMIZER: User mentions daily energy levels, fatigue, focus, or asks for daily energy schedule optimization (e.g. "aaj mera mood thaka hua hai", "low energy lag rahi hai focus schedule banao", "optimize my focus for today").
+21. TEACHING_STUDIO: User asks to generate lecture notes, assignment questions, slides outline, or solution keys for teaching/classes (e.g. "React Hooks par kal ki class ke liye 5 assignment questions aur answer key doc banao", "teaching package for Web Dev").
+22. BUDGET_DIRECTOR: User asks for financial health report, monthly savings advice, budget summary, or expense analytics (e.g. "mera monthly budget report dikhao", "financial health check", "savings report", "expense vs income breakdown").
+23. GENERAL_CONVERSATION: User is asking a question, chatting, seeking advice, planning, or teaching guidance.
 """
 
 class ConversationalAgent:
@@ -331,6 +336,45 @@ Return JSON with format:
             elif intent == "LIST_REMINDERS":
                 digest_content = self.pa_service.get_reminders_digest(chat_id)
                 final_reply = f"{base_response}\n\n{digest_content}"
+
+            elif intent == "SAVE_MIND_VAULT":
+                res = self.pa_service.save_mind_vault_fact(chat_id, user_text)
+                if res.get("success"):
+                    final_reply = (
+                        f"🧠 *Personal Fact Recorded to Mind Vault!*\n\n"
+                        f"• *Category*: `{res.get('category')}`\n"
+                        f"• *Topic*: {res.get('fact_key')}\n"
+                        f"• *Recorded Detail*: {res.get('fact_value')}\n"
+                        f"• *ID*: #{res.get('id')}\n\n"
+                        f"_(I have stored this in your second brain. Ask me anytime to recall it!)_"
+                    )
+                else:
+                    final_reply = "⚠️ Could not save fact to Mind Vault."
+
+            elif intent == "QUERY_MIND_VAULT":
+                answer = self.pa_service.query_mind_vault(chat_id, user_text)
+                final_reply = f"🧠 *Mind Vault Recall*:\n\n{answer}"
+
+            elif intent == "FOCUS_OPTIMIZER":
+                schedule = self.pa_service.optimize_focus_schedule(user_text)
+                final_reply = f"{base_response}\n\n{schedule}"
+
+            elif intent == "TEACHING_STUDIO":
+                topic = doc_inst_val or user_text
+                res = self.pa_service.create_teaching_package(topic)
+                if res.get("success"):
+                    final_reply = (
+                        f"🎓 *Academic Teaching Package Generated!*\n\n"
+                        f"• *Title*: {res.get('title')}\n"
+                        f"• *Package Includes*: Lecture Outline, 5 Exercises & Solutions\n"
+                        f"🔗 *Open Google Doc*: {res.get('url')}"
+                    )
+                else:
+                    final_reply = f"⚠️ Could not generate teaching package: {res.get('error')}"
+
+            elif intent == "BUDGET_DIRECTOR":
+                report = self.pa_service.get_financial_health_report()
+                final_reply = f"{base_response}\n\n{report}"
 
             # 3. Save User Message & Zeyra Response to SQLite Memory
             save_message(chat_id, "user", user_text)

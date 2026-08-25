@@ -652,6 +652,35 @@ Return strict JSON:
             msg += f"*{idx}. {r['reminder_text']}*\n• 📅 *Scheduled For*: `{r['remind_at']}` (ID: #{r['id']})\n\n"
         return msg
 
+    def save_mind_vault_fact(self, chat_id: str, fact_text: str) -> dict:
+        """Saves a personal fact to Mind Vault SQLite database."""
+        from src.services.mind_vault_service import save_fact
+        return save_fact(chat_id, fact_text)
+
+    def query_mind_vault(self, chat_id: str, query_text: str) -> str:
+        """Searches personal Mind Vault SQLite database and recalls stored knowledge."""
+        from src.services.mind_vault_service import query_vault
+        return query_vault(chat_id, query_text)
+
+    def optimize_focus_schedule(self, user_note: str) -> str:
+        """Generates AI Daily Energy & Focus Schedule based on user state."""
+        from src.services.energy_optimizer_service import optimize_daily_focus
+        return optimize_daily_focus(user_note)
+
+    def create_teaching_package(self, topic_or_instructions: str) -> dict:
+        """Generates 3-in-1 Teaching Package Google Doc (Lecture, Assignments, Solution Key)."""
+        if not self.docs_service or not self.drive_service:
+            self.initialize_services()
+        from src.services.teaching_studio_service import create_teaching_package
+        return create_teaching_package(self.docs_service, self.drive_service, topic_or_instructions)
+
+    def get_financial_health_report(self) -> str:
+        """Generates Executive Personal Financial Health Report."""
+        if not self.sheets_service or not self.drive_service:
+            self.initialize_services()
+        from src.services.budget_service import generate_financial_health_report
+        return generate_financial_health_report(self.sheets_service, self.drive_service)
+
 
 def run_morning_brief_agent(send_telegram: bool = True):
     service = PersonalAssistantService()
