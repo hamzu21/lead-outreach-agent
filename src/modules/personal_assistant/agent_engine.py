@@ -413,13 +413,14 @@ Return JSON with format:
                 topic = doc_inst_val or user_text
                 res = self.pa_service.create_lecture_slides(topic)
                 if res.get("success"):
+                    slides_url = res.get("url")
                     final_reply = (
                         f"📊 *Google Slides Presentation Generated Successfully!* 🎓\n\n"
                         f"• *Title*: {res.get('title')}\n"
                         f"• *Slide Count*: {res.get('slides_count')} Widescreen Slides\n"
                         f"• *Instructor*: {res.get('outline', {}).get('instructor', 'Muhammad Hamza')}\n"
-                        f"• *Theme*: Executive Dark Navy (16:9 Widescreen)\n\n"
-                        f"🔗 *Open & Edit Google Slides*: {res.get('url')}"
+                        f"• *Theme*: Modern High-Contrast Light Snow (16:9 Widescreen)\n\n"
+                        f"🔗 [Open & Edit Google Slides Presentation]({slides_url})"
                     )
                 else:
                     final_reply = f"⚠️ Could not generate Google Slides presentation: {res.get('error')}"

@@ -54,21 +54,58 @@ def extract_text_from_file(file_path: str) -> str:
         
     return text.strip()
 
+def analyze_document_topics(file_path: str) -> dict:
+    """
+    Analyzes an uploaded document and extracts table of contents / chapter list / main topics
+    so Zeyra can ask the user for specific guidelines on which chapters/topics to convert to slides.
+    """
+    text = extract_text_from_file(file_path)
+    if not text:
+        return {"document_name": os.path.basename(file_path), "topics": []}
+    
+    snippet = text[:5000]
+    prompt = f"""
+Analyze this document snippet and extract the main chapters, sections, or topics present:
+Document Filename: {os.path.basename(file_path)}
+Content Snippet:
+{snippet}
+
+Return JSON with schema:
+{{
+  "document_title": "Title or main subject of the document",
+  "chapters_or_topics": [
+    "Chapter 1 / Topic 1 Name",
+    "Chapter 2 / Topic 2 Name",
+    "Chapter 3 / Topic 3 Name"
+  ]
+}}
+"""
+    try:
+        raw_json = generate_ai_content(prompt, response_mime_type="application/json")
+        clean_str = raw_json.strip().strip("`").replace("json\n", "")
+        return json.loads(clean_str)
+    except Exception as e:
+        print(f"[SlidesService] Error analyzing document topics: {e}")
+        return {
+            "document_title": os.path.basename(file_path),
+            "chapters_or_topics": ["General Overview & Main Topics"]
+        }
+
 def generate_slides_outline(input_text_or_topic: str) -> dict:
     """
-    Uses Gemini AI to structure raw lecture text, document content, or topic into a structured presentation outline JSON.
+    Uses Gemini AI to structure raw lecture text, document content, or specific chapter into a structured presentation outline JSON.
     """
     prompt = f"""
 You are an expert academic curriculum designer and executive presentation creator.
-Create a structured lecture presentation outline based on the following input:
+Create a high-impact, educational lecture presentation outline based strictly on the following input material / chapter guidelines:
 
-Input Content / Topic / Document:
-"{input_text_or_topic[:4000]}"
+Input Material / Chapter / Guidelines:
+"{input_text_or_topic[:6000]}"
 
 Structure the output as strict JSON with this exact schema:
 {{
   "presentation_title": "Clean, Catchy Presentation Title",
-  "subtitle": "Lecture Subtitle / Subject Name",
+  "subtitle": "Lecture Subtitle / Subject / Chapter Name",
   "instructor": "Muhammad Hamza",
   "objectives": [
     "Learning objective 1",
@@ -79,11 +116,11 @@ Structure the output as strict JSON with this exact schema:
     {{
       "title": "Slide Title 1",
       "bullet_points": [
-        "Key point 1 with explanation",
-        "Key point 2 with explanation",
-        "Key point 3 with explanation"
+        "Key concept 1 with clear explanation",
+        "Key concept 2 with clear explanation",
+        "Key concept 3 with clear explanation"
       ],
-      "takeaway": "Key takeaway or core takeaway line for students"
+      "takeaway": "Core takeaway or student note"
     }},
     {{
       "title": "Slide Title 2",
@@ -92,7 +129,7 @@ Structure the output as strict JSON with this exact schema:
         "Key point 2",
         "Key point 3"
       ],
-      "takeaway": "Key takeaway summary"
+      "takeaway": "Core takeaway summary"
     }}
   ],
   "summary_points": [
@@ -102,7 +139,7 @@ Structure the output as strict JSON with this exact schema:
   "discussion_question": "A thought-provoking question for student Q&A discussion"
 }}
 
-Provide 4 to 7 content slides. Ensure content is educational, professional, and well-structured. Return ONLY valid JSON.
+Provide 4 to 7 content slides. Ensure content is educational, professional, and readable. Return ONLY valid JSON.
 """
     raw_json = generate_ai_content(prompt, response_mime_type="application/json")
     try:
@@ -134,18 +171,20 @@ Provide 4 to 7 content slides. Ensure content is educational, professional, and 
 
 def create_styled_pptx(outline: dict, output_path: str = "generated_lecture.pptx") -> str:
     """
-    Creates a styled PPTX presentation using python-pptx with an executive dark slate theme.
+    Creates a styled PPTX presentation using python-pptx with a Modern High-Contrast Light Snow / Pure White Theme
+    specifically designed for high visibility from a distance in classroom/lecture halls.
     """
     prs = Presentation()
     prs.slide_width = Inches(13.333)  # 16:9 widescreen
     prs.slide_height = Inches(7.5)
 
-    # Color Palette: Executive Navy & Cyan Accent
-    COLOR_BG = RGBColor(30, 41, 59)       # #1E293B Slate Dark
-    COLOR_CARD = RGBColor(51, 65, 85)     # #334155 Slate Card
-    COLOR_CYAN = RGBColor(56, 189, 248)   # #38BDF8 Sky Cyan
-    COLOR_WHITE = RGBColor(248, 250, 252) # #F8FAFC Soft White
-    COLOR_MUTED = RGBColor(148, 163, 184) # #94A3B8 Muted Light
+    # Color Palette: Modern High-Contrast Light / White Executive Theme
+    COLOR_BG = RGBColor(255, 255, 255)       # #FFFFFF Soft Pure White Background
+    COLOR_CARD = RGBColor(241, 245, 249)     # #F1F5F9 Slate Light Ice Card
+    COLOR_TITLE = RGBColor(15, 23, 42)       # #0F172A High-Contrast Deep Midnight Navy Header
+    COLOR_BODY = RGBColor(30, 41, 59)        # #1E293B Dark Charcoal Text (Easy distance reading)
+    COLOR_ACCENT = RGBColor(37, 99, 235)     # #2563EB Royal Blue Accent
+    COLOR_MUTED = RGBColor(100, 116, 139)    # #64748B Slate Muted Text
 
     blank_layout = prs.slide_layouts[6]
 
@@ -155,49 +194,55 @@ def create_styled_pptx(outline: dict, output_path: str = "generated_lecture.pptx
         bg.fill.fore_color.rgb = COLOR_BG
         bg.line.fill.background()
 
-    # 1. Slide 1: Title Slide
+    # 1. Slide 1: Title Slide (Clean White & High Contrast Dark Header)
     slide1 = prs.slides.add_slide(blank_layout)
     set_slide_bg(slide1)
 
+    # Accent Top Bar
+    top_bar = slide1.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(1.0), Inches(1.5), Inches(2.5), Inches(0.1))
+    top_bar.fill.solid()
+    top_bar.fill.fore_color.rgb = COLOR_ACCENT
+    top_bar.line.fill.background()
+
     # Title box
-    tb = slide1.shapes.add_textbox(Inches(1.0), Inches(2.2), Inches(11.333), Inches(3.5))
+    tb = slide1.shapes.add_textbox(Inches(1.0), Inches(1.8), Inches(11.333), Inches(4.5))
     tf = tb.text_frame
     tf.word_wrap = True
 
     p = tf.paragraphs[0]
     p.text = outline.get("presentation_title", "Lecture Presentation")
-    p.font.size = Pt(40)
+    p.font.size = Pt(42)
     p.font.bold = True
-    p.font.color.rgb = COLOR_CYAN
+    p.font.color.rgb = COLOR_TITLE
     p.alignment = PP_ALIGN.LEFT
 
     p2 = tf.add_paragraph()
     p2.text = outline.get("subtitle", "")
     p2.font.size = Pt(22)
-    p2.font.color.rgb = COLOR_WHITE
+    p2.font.color.rgb = COLOR_ACCENT
     p2.space_before = Pt(14)
 
     p3 = tf.add_paragraph()
     p3.text = f"Instructor: {outline.get('instructor', 'Muhammad Hamza')}"
     p3.font.size = Pt(18)
     p3.font.color.rgb = COLOR_MUTED
-    p3.space_before = Pt(24)
+    p3.space_before = Pt(28)
 
     # 2. Slide 2: Learning Objectives
     slide2 = prs.slides.add_slide(blank_layout)
     set_slide_bg(slide2)
 
-    tb2 = slide2.shapes.add_textbox(Inches(1.0), Inches(0.8), Inches(11.333), Inches(1.0))
+    tb2 = slide2.shapes.add_textbox(Inches(1.0), Inches(0.7), Inches(11.333), Inches(1.0))
     tf2 = tb2.text_frame
     p = tf2.paragraphs[0]
     p.text = "🎯 Learning Objectives"
     p.font.size = Pt(32)
     p.font.bold = True
-    p.font.color.rgb = COLOR_CYAN
+    p.font.color.rgb = COLOR_TITLE
 
     objs = outline.get("objectives", [])
     for idx, obj in enumerate(objs):
-        top_pos = 2.0 + (idx * 1.3)
+        top_pos = 1.9 + (idx * 1.3)
         card = slide2.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(1.0), Inches(top_pos), Inches(11.333), Inches(1.0))
         card.fill.solid()
         card.fill.fore_color.rgb = COLOR_CARD
@@ -207,9 +252,10 @@ def create_styled_pptx(outline: dict, output_path: str = "generated_lecture.pptx
         ctf = ctb.text_frame
         ctf.word_wrap = True
         cp = ctf.paragraphs[0]
-        cp.text = f"• {obj}"
+        cp.text = f"•  {obj}"
         cp.font.size = Pt(20)
-        cp.font.color.rgb = COLOR_WHITE
+        cp.font.bold = True
+        cp.font.color.rgb = COLOR_BODY
 
     # 3. Topic Content Slides
     for slide_data in outline.get("slides", []):
@@ -217,21 +263,21 @@ def create_styled_pptx(outline: dict, output_path: str = "generated_lecture.pptx
         set_slide_bg(cslide)
 
         # Header Title
-        htb = cslide.shapes.add_textbox(Inches(1.0), Inches(0.7), Inches(11.333), Inches(1.0))
+        htb = cslide.shapes.add_textbox(Inches(1.0), Inches(0.6), Inches(11.333), Inches(1.0))
         htf = htb.text_frame
         hp = htf.paragraphs[0]
         hp.text = slide_data.get("title", "Topic Overview")
         hp.font.size = Pt(30)
         hp.font.bold = True
-        hp.font.color.rgb = COLOR_CYAN
+        hp.font.color.rgb = COLOR_TITLE
 
         # Content Card
-        bcard = cslide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(1.0), Inches(1.8), Inches(11.333), Inches(4.2))
+        bcard = cslide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(1.0), Inches(1.7), Inches(11.333), Inches(4.3))
         bcard.fill.solid()
         bcard.fill.fore_color.rgb = COLOR_CARD
         bcard.line.fill.background()
 
-        btb = cslide.shapes.add_textbox(Inches(1.3), Inches(2.0), Inches(10.7), Inches(3.8))
+        btb = cslide.shapes.add_textbox(Inches(1.3), Inches(1.9), Inches(10.7), Inches(3.9))
         btf = btb.text_frame
         btf.word_wrap = True
 
@@ -240,7 +286,7 @@ def create_styled_pptx(outline: dict, output_path: str = "generated_lecture.pptx
             bp = btf.paragraphs[0] if b_idx == 0 else btf.add_paragraph()
             bp.text = f"•  {bullet}"
             bp.font.size = Pt(20)
-            bp.font.color.rgb = COLOR_WHITE
+            bp.font.color.rgb = COLOR_BODY
             if b_idx > 0:
                 bp.space_before = Pt(14)
 
@@ -253,27 +299,27 @@ def create_styled_pptx(outline: dict, output_path: str = "generated_lecture.pptx
             tp.text = f"💡 Key Takeaway: {takeaway}"
             tp.font.size = Pt(16)
             tp.font.bold = True
-            tp.font.color.rgb = COLOR_CYAN
+            tp.font.color.rgb = COLOR_ACCENT
 
     # 4. Slide Final: Summary & Discussion
     fslide = prs.slides.add_slide(blank_layout)
     set_slide_bg(fslide)
 
-    ftb = fslide.shapes.add_textbox(Inches(1.0), Inches(0.8), Inches(11.333), Inches(1.0))
+    ftb = fslide.shapes.add_textbox(Inches(1.0), Inches(0.7), Inches(11.333), Inches(1.0))
     ftf = ftb.text_frame
     fp = ftf.paragraphs[0]
     fp.text = "📌 Summary & Student Discussion"
     fp.font.size = Pt(32)
     fp.font.bold = True
-    fp.font.color.rgb = COLOR_CYAN
+    fp.font.color.rgb = COLOR_TITLE
 
     # Summary box
-    scard = fslide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(1.0), Inches(2.0), Inches(11.333), Inches(3.0))
+    scard = fslide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(1.0), Inches(1.8), Inches(11.333), Inches(3.2))
     scard.fill.solid()
     scard.fill.fore_color.rgb = COLOR_CARD
     scard.line.fill.background()
 
-    stb = fslide.shapes.add_textbox(Inches(1.3), Inches(2.2), Inches(10.7), Inches(2.6))
+    stb = fslide.shapes.add_textbox(Inches(1.3), Inches(2.0), Inches(10.7), Inches(2.8))
     stf = stb.text_frame
     stf.word_wrap = True
 
@@ -282,7 +328,7 @@ def create_styled_pptx(outline: dict, output_path: str = "generated_lecture.pptx
         sp = stf.paragraphs[0] if idx == 0 else stf.add_paragraph()
         sp.text = f"•  {sp_text}"
         sp.font.size = Pt(20)
-        sp.font.color.rgb = COLOR_WHITE
+        sp.font.color.rgb = COLOR_BODY
         if idx > 0:
             sp.space_before = Pt(12)
 
@@ -295,7 +341,7 @@ def create_styled_pptx(outline: dict, output_path: str = "generated_lecture.pptx
         qp.text = f"❓ Q&A Discussion Prompt: {q_prompt}"
         qp.font.size = Pt(20)
         qp.font.bold = True
-        qp.font.color.rgb = COLOR_CYAN
+        qp.font.color.rgb = COLOR_ACCENT
 
     prs.save(output_path)
     return output_path
@@ -303,8 +349,9 @@ def create_styled_pptx(outline: dict, output_path: str = "generated_lecture.pptx
 def create_google_slides_presentation(input_content_or_filepath: str) -> dict:
     """
     Complete pipeline: parses input (text or uploaded PDF/DOCX/TXT file),
-    generates AI outline, builds PPTX presentation, uploads & converts to native Google Slides,
-    and returns direct shareable Google Slides link.
+    generates AI outline, builds PPTX presentation with High-Contrast White Theme,
+    uploads & converts to native Google Slides, sets public edit permissions,
+    and returns a clean, direct clickable Google Slides link.
     """
     # 1. Check if input is a local file path
     input_text = ""
@@ -353,9 +400,8 @@ def create_google_slides_presentation(input_content_or_filepath: str) -> dict:
         ).execute()
 
         f_id = gfile.get("id")
-        link = gfile.get("webViewLink")
 
-        # Set public/shareable edit permissions
+        # Set public/shareable edit permissions for anyone with the link
         try:
             drive_service.permissions().create(
                 fileId=f_id,
@@ -364,6 +410,8 @@ def create_google_slides_presentation(input_content_or_filepath: str) -> dict:
         except Exception as pe:
             print(f"[SlidesService] Permission warning: {pe}")
 
+        # Construct clean, un-mangled direct Google Slides edit link
+        slides_direct_url = f"https://docs.google.com/presentation/d/{f_id}/edit?usp=sharing"
         slide_count = len(outline.get("slides", [])) + 3
 
         return {
@@ -371,7 +419,7 @@ def create_google_slides_presentation(input_content_or_filepath: str) -> dict:
             "title": pres_title,
             "slides_count": slide_count,
             "file_id": f_id,
-            "url": link,
+            "url": slides_direct_url,
             "pptx_file": pptx_path,
             "outline": outline
         }

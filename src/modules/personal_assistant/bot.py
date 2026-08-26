@@ -180,16 +180,33 @@ def run_telegram_bot_loop():
                     file_name = document.get("file_name", "document.pdf")
                     print(f"[Zeyra Agent] Document received from Chat ID {chat_id}: '{file_name}' (ID: {file_id})")
                     
-                    send_telegram_message(f"📥 *Received document*: `{file_name}`. Processing and generating presentation slides...", chat_id=chat_id)
                     local_path = download_telegram_file(file_id, file_name)
                     
                     if local_path:
-                        doc_text = extract_text_from_file(local_path)
-                        prompt_text = caption if caption else f"Generate Google Slides presentation for students based on this uploaded document: {file_name}"
-                        full_user_input = f"{prompt_text}\n\nDocument File: {file_name}\nExtracted Content:\n{doc_text[:4000]}"
-                        
-                        reply = agent.process_message(chat_id=chat_id, user_text=full_user_input)
-                        send_telegram_message(reply, chat_id=chat_id)
+                        if caption:
+                            # User provided specific guidelines in caption (e.g. "Chapter 1 ki slides banao")
+                            send_telegram_message(f"📥 *Received document*: `{file_name}` with guidelines: _{caption}_\n\nGenerating High-Contrast White Presentation Slides...", chat_id=chat_id)
+                            doc_text = extract_text_from_file(local_path)
+                            full_user_input = f"User Guidelines for Document: {caption}\n\nDocument File: {file_name}\nExtracted Content:\n{doc_text[:6000]}"
+                            reply = agent.process_message(chat_id=chat_id, user_text=full_user_input)
+                            send_telegram_message(reply, chat_id=chat_id)
+                        else:
+                            # No caption provided -> Analyze topics and ask user for guidelines
+                            from src.services.slides_service import analyze_document_topics
+                            analysis = analyze_document_topics(local_path)
+                            doc_title = analysis.get("document_title", file_name)
+                            topics = analysis.get("chapters_or_topics", [])
+                            
+                            topic_list_str = "\n".join([f"• *{t}*" for t in topics]) if topics else "• *General Overview & Chapters*"
+                            
+                            guidelines_msg = (
+                                f"📥 *Document Received*: `{file_name}`\n\n"
+                                f"Main ne aap ke document (_{doc_title}_) me yeh chapters/topics analyze kiye hain:\n"
+                                f"{topic_list_str}\n\n"
+                                f"👉 *Guidelines Needed*: Aap kis specific chapter ya topic ki slides banana chahte hain?\n"
+                                f"_(Maslan bolein: 'Chapter 1 ki slides banao', 'Topic 2 ki presentation banao', ya 'Poori book ki slides banao')_"
+                            )
+                            send_telegram_message(guidelines_msg, chat_id=chat_id)
                     else:
                         send_telegram_message("⚠️ Could not download uploaded document from Telegram.", chat_id=chat_id)
                     continue
