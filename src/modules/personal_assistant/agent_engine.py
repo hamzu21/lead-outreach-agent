@@ -457,16 +457,18 @@ Return JSON with format:
             elif intent == "ACADEMIC_OUTREACH":
                 res = self.pa_service.run_professor_outreach(limit=10)
                 if res.get("success"):
+                    cv_name = os.path.basename(res.get('attached_cv', 'Muhammad_Hamza_CV.pdf')) if res.get('attached_cv') else "Muhammad_Hamza_CV.pdf"
                     final_reply = (
-                        f"🎓 *Academic Professor Outreach Campaign Completed!* 🏛️\n\n"
-                        f"• *Professors Contacted*: `{res.get('processed_count')}`\n"
+                        f"🎓 *Academic Professor Outreach Drafts Created!* 🏛️\n\n"
+                        f"• *Gmail Drafts Prepared*: `{res.get('drafts_created')}`\n"
+                        f"• *Safety Protocol*: Saved to Gmail Drafts (NOT sent directly)\n"
                         f"• *Research Lookup*: Semantic Scholar & OpenAlex APIs\n"
-                        f"• *CV Attached*: `Muhammad_Hamza_CV.pdf`\n"
+                        f"• *CV Attached*: `{cv_name}`\n"
                         f"• *Tracker File*: `{res.get('csv_file')}`\n\n"
-                        f"_(All outreach emails have been personalized with recent paper hooks and sent directly via Gmail.)_"
+                        f"💡 *Hamza, aap Gmail drafts me in sabko review kar lein.* Jab aap approve karein to mujhse kahein: *'in drafts ko send/schedule krdo'*!"
                     )
                 else:
-                    final_reply = f"⚠️ Could not complete professor outreach: {res.get('error')}"
+                    final_reply = f"⚠️ Could not create professor outreach drafts: {res.get('error')}"
 
             elif intent == "SET_REMINDER":
                 rem_text = reminder_text_val or user_text

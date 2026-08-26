@@ -1,21 +1,35 @@
 import base64
 from email.message import EmailMessage
+import os
 
-def create_gmail_draft(gmail_service, to_email: str, subject: str, body_text: str) -> str:
+def create_gmail_draft(gmail_service, to_email: str, subject: str, body_text: str, attachment_path: str = None) -> str:
     """
-    Creates a draft email in the user's Gmail account.
+    Creates a draft email in the user's Gmail account with optional file attachment.
     """
     message = EmailMessage()
     message.set_content(body_text)
     message["To"] = to_email
     message["Subject"] = subject
 
+    if attachment_path and os.path.exists(attachment_path):
+        filename = os.path.basename(attachment_path)
+        with open(attachment_path, "rb") as f:
+            file_data = f.read()
+        
+        subtype = "pdf" if filename.lower().endswith(".pdf") else "octet-stream"
+        message.add_attachment(
+            file_data,
+            maintype="application",
+            subtype=subtype,
+            filename=filename
+        )
+
     encoded = base64.urlsafe_b64encode(message.as_bytes()).decode()
     draft = gmail_service.users().drafts().create(
         userId="me",
         body={"message": {"raw": encoded}}
     ).execute()
-import os
+    return draft.get("id")
 
 def send_gmail_message(gmail_service, to_email: str, subject: str, body_text: str, attachment_path: str = None) -> str:
     """

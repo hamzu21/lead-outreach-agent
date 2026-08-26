@@ -2,13 +2,43 @@ import os
 import csv
 import json
 import time
+import subprocess
 import requests
 from src.services.google_auth import get_google_services
-from src.services.gmail_service import send_gmail_message
+from src.services.gmail_service import create_gmail_draft, send_gmail_message
 from src.services.ai_generator import generate_ai_content
 
+ACADEMIC_TEX_PATH = os.path.join(os.getcwd(), "academic_cv.tex")
+MASTER_TEX_PATH = os.path.join(os.getcwd(), "resume.tex")
 CV_FILE_PATH = os.path.join(os.getcwd(), "Muhammad_Hamza_CV.pdf")
 DEFAULT_PROFESSORS_CSV = os.path.join(os.getcwd(), "professors_list.csv")
+
+def get_academic_cv_pdf() -> str:
+    """
+    Compiles Academic LaTeX template if academic_cv.tex exists,
+    otherwise uses compiled master Muhammad_Hamza_CV.pdf.
+    """
+    tex_file = ACADEMIC_TEX_PATH if os.path.exists(ACADEMIC_TEX_PATH) else MASTER_TEX_PATH
+    output_pdf = os.path.join(os.getcwd(), "Academic_Muhammad_Hamza_CV.pdf") if os.path.exists(ACADEMIC_TEX_PATH) else CV_FILE_PATH
+
+    if os.path.exists(tex_file) and tex_file == ACADEMIC_TEX_PATH:
+        try:
+            print(f"[AcademicOutreach] Compiling custom Academic CV template '{os.path.basename(tex_file)}'...")
+            res = subprocess.run(
+                ["pdflatex", "-interaction=nonstopmode", tex_file],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                cwd=os.getcwd(),
+                timeout=30
+            )
+            if res.returncode == 0 and os.path.exists(output_pdf):
+                print(f" -> Compiled Academic CV PDF successfully: {output_pdf}")
+                return output_pdf
+        except Exception as e:
+            print(f"[AcademicOutreach] PDF compilation notice: {e}")
+
+    return CV_FILE_PATH if os.path.exists(CV_FILE_PATH) else None
 
 def fetch_semantic_scholar_paper(prof_name: str) -> str:
     """
@@ -152,9 +182,11 @@ def create_sample_professors_csv(csv_path: str = DEFAULT_PROFESSORS_CSV):
         writer.writerows(sample_data)
     print(f"[AcademicOutreach] Created sample tracker CSV: {csv_path}")
 
-def run_academic_outreach_campaign(csv_file: str = DEFAULT_PROFESSORS_CSV, limit: int = 10) -> dict:
+def run_academic_outreach_campaign(csv_file: str = DEFAULT_PROFESSORS_CSV, limit: int = 10, target_country: str = None, target_field: str = None) -> dict:
     """
-    Main pipeline for Academic Professor Outreach Campaign.
+    Generates personalized Gmail Drafts for academic professor outreach.
+    CRITICAL: Does NOT send emails directly. Saves them as Gmail Drafts with CV PDF attached for human review.
+    Supports filtering by target country and research field.
     """
     create_sample_professors_csv(csv_file)
     
@@ -167,45 +199,64 @@ def run_academic_outreach_campaign(csv_file: str = DEFAULT_PROFESSORS_CSV, limit
         reader = csv.DictReader(f)
         rows = list(reader)
 
-    sent_count = 0
-    cv_path = CV_FILE_PATH if os.path.exists(CV_FILE_PATH) else None
+    created_draft_count = 0
+    cv_path = get_academic_cv_pdf()
+
+    filter_country_lower = target_country.lower().strip() if target_country else None
+    filter_field_lower = target_field.lower().strip() if target_field else None
 
     for idx, row in enumerate(rows):
-        if sent_count >= limit:
-            print(f"[AcademicOutreach] Reached limit of {limit} professors. Stopping batch.")
+        if created_draft_count >= limit:
+            print(f"[AcademicOutreach] Reached batch draft limit of {limit}. Stopping batch.")
             break
 
         status = row.get('Status', '')
-        if status in ['Sent', 'Draft Created']:
+        if 'Draft Created' in status or 'Sent' in status:
             continue
 
         prof_name = row.get('Name', 'Professor')
         prof_email = row.get('Email', '')
         university = row.get('University', 'University')
+        country = row.get('Country', '')
         research_topic = row.get('Research_Topic', 'Software Engineering & AI')
+
+        # Apply Country & Field Filters if specified by user
+        if filter_country_lower and filter_country_lower not in country.lower():
+            print(f" -> Skipping {prof_name} ({country}): Country does not match target filter '{target_country}'")
+            continue
+
+        if filter_field_lower and filter_field_lower not in research_topic.lower():
+            print(f" -> Skipping {prof_name} ({research_topic}): Field does not match target filter '{target_field}'")
+            continue
 
         if not prof_email or "@" not in prof_email:
             continue
 
-        print(f"\n[AcademicOutreach] [{sent_count + 1}/{limit}] Processing: {prof_name} ({university})")
+        print(f"\n[AcademicOutreach] [{created_draft_count + 1}/{limit}] Drafting for: {prof_name} ({university}, {country})")
 
-        # 1. Fetch Scholar Insights
+        # 1. Fetch Scholar Insights via Semantic Scholar / OpenAlex
         paper_title = fetch_semantic_scholar_paper(prof_name)
         row['Latest_Paper'] = paper_title if paper_title else 'N/A'
 
-        # 2. Build Personalized Email
+        # 2. Build Personalized Email Content
         email_content = build_academic_email_body(prof_name, university, research_topic, paper_title=paper_title)
 
-        # 3. Send Email via Gmail API (with CV attachment)
+        # 3. Create Gmail Draft (SAFETY FIRST: Save to Drafts with CV PDF attached)
         try:
-            msg_id = send_gmail_message(gmail, prof_email, email_content["subject"], email_content["body"], attachment_path=cv_path)
-            print(f" -> Sent email to {prof_email} (Msg ID: {msg_id})")
-            row['Status'] = 'Sent'
-            sent_count += 1
-            time.sleep(2) # Anti-Spam pause
+            draft_id = create_gmail_draft(
+                gmail,
+                to_email=prof_email,
+                subject=email_content["subject"],
+                body_text=email_content["body"],
+                attachment_path=cv_path
+            )
+            print(f" -> Draft created successfully in Gmail! (Draft ID: {draft_id})")
+            row['Status'] = f"Draft Created (ID: {draft_id})"
+            created_draft_count += 1
+            time.sleep(1) # Rate limit pause
         except Exception as e:
-            print(f" -> Error sending email to {prof_name}: {e}")
-            row['Status'] = f"Failed: {e}"
+            print(f" -> Error creating draft for {prof_name}: {e}")
+            row['Status'] = f"Failed Draft: {e}"
 
     # Update CSV tracker
     with open(csv_file, 'w', newline='', encoding='utf-8') as f:
@@ -216,6 +267,37 @@ def run_academic_outreach_campaign(csv_file: str = DEFAULT_PROFESSORS_CSV, limit
 
     return {
         "success": True,
-        "processed_count": sent_count,
-        "csv_file": csv_file
+        "drafts_created": created_draft_count,
+        "csv_file": csv_file,
+        "attached_cv": cv_path
     }
+
+def send_approved_academic_drafts(draft_ids: list = None) -> dict:
+    """
+    Sends/dispatches approved academic drafts from Gmail after user review.
+    """
+    sheets, gmail, docs, drive = get_google_services()
+    if not gmail:
+        return {"success": False, "error": "Gmail API authentication unavailable"}
+
+    res = gmail.users().drafts().list(userId="me").execute()
+    drafts = res.get("drafts", [])
+
+    if not drafts:
+        return {"success": True, "sent_count": 0, "message": "No pending drafts found in Gmail."}
+
+    sent_count = 0
+    for d in drafts:
+        d_id = d.get("id")
+        if draft_ids and d_id not in draft_ids:
+            continue
+
+        try:
+            gmail.users().drafts().send(userId="me", body={"id": d_id}).execute()
+            sent_count += 1
+            print(f"[AcademicOutreach] Sent approved Gmail draft ID: {d_id}")
+            time.sleep(1.5)
+        except Exception as ex:
+            print(f"[AcademicOutreach] Error sending draft {d_id}: {ex}")
+
+    return {"success": True, "sent_count": sent_count}

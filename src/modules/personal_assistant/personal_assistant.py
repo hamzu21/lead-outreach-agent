@@ -816,10 +816,15 @@ Return strict JSON:
         from src.services.slides_service import create_google_slides_presentation
         return create_google_slides_presentation(input_content_or_filepath)
 
-    def run_professor_outreach(self, limit: int = 10) -> dict:
-        """Triggers Academic Professor Outreach Campaign with Semantic Scholar paper lookup."""
+    def run_professor_outreach(self, limit: int = 10, country: str = None, field: str = None) -> dict:
+        """Triggers Academic Professor Outreach Campaign to create Gmail Drafts with Semantic Scholar paper lookup."""
         from src.modules.academic_outreach import run_academic_outreach_campaign
-        return run_academic_outreach_campaign(limit=limit)
+        return run_academic_outreach_campaign(limit=limit, target_country=country, target_field=field)
+
+    def dispatch_approved_academic_drafts(self, draft_ids: list = None) -> dict:
+        """Dispatches approved Gmail drafts after human review."""
+        from src.modules.academic_outreach import send_approved_academic_drafts
+        return send_approved_academic_drafts(draft_ids=draft_ids)
 
 
 def run_morning_brief_agent(send_telegram: bool = True):

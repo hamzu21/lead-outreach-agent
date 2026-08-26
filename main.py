@@ -72,7 +72,7 @@ def main():
         print(f"Starting Academic Professor Outreach Agent (Mode: {args.mode}, Limit: {limit})...")
         try:
             res = run_academic_outreach_campaign(limit=limit)
-            print(f"[SUCCESS] Academic Outreach Campaign Completed! Processed: {res.get('processed_count')} professors.")
+            print(f"[SUCCESS] Academic Outreach Drafts Created! Drafts Prepared: {res.get('drafts_created')} (Saved to Gmail Drafts for review).")
         except Exception as e:
             print(f"\n[ERROR] Academic Outreach Agent failed: {e}", file=sys.stderr)
             traceback.print_exc()
