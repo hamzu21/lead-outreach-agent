@@ -21,15 +21,15 @@ def get_ai_client():
 
 FALLBACK_MODELS = [
     "gemini-2.5-flash",
-    "gemini-1.5-flash",
-    AI_MODEL_NAME,
+    "gemini-2.5-flash-lite",
     "gemini-3.5-flash-lite",
+    "gemini-3.5-flash",
     "gemini-flash-latest"
 ]
 
 def generate_ai_content(prompt: str, response_mime_type: str = None) -> str:
     """
-    Executes a Gemini AI prompt with automatic model fallback and network disconnect retry handling.
+    Executes a Gemini AI prompt with fast automatic model fallback and low-latency retry handling.
     """
     client = get_ai_client()
     candidate_models = list(dict.fromkeys(FALLBACK_MODELS))
@@ -38,7 +38,7 @@ def generate_ai_content(prompt: str, response_mime_type: str = None) -> str:
     if response_mime_type:
         config["response_mime_type"] = response_mime_type
 
-    max_network_retries = 3
+    max_network_retries = 2
     for attempt in range(1, max_network_retries + 1):
         last_exception = None
         for model_name in candidate_models:
@@ -52,25 +52,19 @@ def generate_ai_content(prompt: str, response_mime_type: str = None) -> str:
             except errors.APIError as e:
                 last_exception = e
                 if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-                    print(f"Notice: Model {model_name} rate limited (429). Trying fallback model...")
-                    time.sleep(2)
                     continue
                 elif "404" in str(e) or "NOT_FOUND" in str(e):
-                    print(f"Notice: Model {model_name} not available. Trying fallback model...")
                     continue
                 else:
-                    time.sleep(2)
+                    time.sleep(0.3)
                     continue
             except Exception as e:
                 last_exception = e
-                print(f"Notice: Network/API warning on model {model_name}: {e}. Retrying fallback...")
-                time.sleep(2)
+                time.sleep(0.3)
                 continue
 
         if attempt < max_network_retries:
-            wait_time = attempt * 4
-            print(f"Warning: Network connectivity issue (Attempt {attempt}/{max_network_retries}). Retrying in {wait_time} seconds...")
-            time.sleep(wait_time)
+            time.sleep(1)
 
     if last_exception:
         raise last_exception

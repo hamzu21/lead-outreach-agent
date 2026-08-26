@@ -97,6 +97,13 @@ Return JSON with format:
 {{
   "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "REPLY_EMAIL" | "JOB_AGENT" | "CREATE_DOC" | "CREATE_SHEET" | "MANAGE_WORKSPACE_FILE" | "LIST_WORKSPACE_FILES" | "CREATE_INVOICE" | "AUDIT_WEBSITE" | "TECH_RADAR" | "SET_REMINDER" | "LIST_REMINDERS" | "CREATE_SLIDES" | "CLEAR_SHEET_DATA" | "GENERAL_CONVERSATION",
   "expense_details": "Extracted expense text if intent is EXPENSE_LOG, else empty string",
+  "parsed_expense": {{
+    "amount": 500.0,
+    "vendor": "Store or payee name",
+    "category": "Personal & Misc",
+    "currency": "PKR",
+    "description": "Short note"
+  }},
   "draft_id": "Extracted draft ID if intent is SEND_DRAFT, else empty string",
   "to_email": "Extracted recipient email address, brand name, or sender keyword (e.g. 'duolingo', 'zeusmr777@gmail.com', 'linkedin') if intent is SEND_EMAIL or REPLY_EMAIL, else empty string",
   "email_subject": "Professional email subject line if intent is SEND_EMAIL or REPLY_EMAIL, else empty string",
@@ -157,14 +164,22 @@ Return JSON with format:
                 final_reply = f"{base_response}\n\n{brief_content}"
 
             elif intent == "EXPENSE_LOG":
-                exp_data = self.pa_service.process_expense(expense_text)
+                combined_exp_text = f"{user_text} {expense_text}"
+                parsed_exp_obj = res_data.get("parsed_expense")
+                exp_data = self.pa_service.process_expense(combined_exp_text, parsed_data=parsed_exp_obj)
+                target_sheet_id = exp_data.get("target_spreadsheet_id")
+                target_tab = exp_data.get("target_tab", "Expenses")
+                target_url = f"https://docs.google.com/spreadsheets/d/{target_sheet_id}/edit?usp=sharing" if target_sheet_id else ""
+                link_str = f"\n\n🔗 [Open & View Target Google Sheet]({target_url})" if target_url else ""
                 final_reply = (
-                    f"Receipt/Expense logged! 🧾\n\n"
-                    f"• *Vendor*: {exp_data.get('vendor')}\n"
+                    f"🧾 *Expense Logged Successfully!*\n\n"
+                    f"• *Vendor/Item*: {exp_data.get('vendor')}\n"
                     f"• *Amount*: {exp_data.get('currency')} {exp_data.get('amount')}\n"
                     f"• *Category*: {exp_data.get('category')}\n"
                     f"• *Date*: {exp_data.get('date')}\n"
+                    f"• *Logged To Tab*: `{target_tab}`\n"
                     f"• *Details*: {exp_data.get('description')}"
+                    f"{link_str}"
                 )
 
             elif intent == "INBOX_DIGEST":

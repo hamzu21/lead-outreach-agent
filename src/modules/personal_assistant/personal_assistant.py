@@ -146,46 +146,72 @@ Keep it concise and easy to read on a mobile phone.
         briefing_text = generate_ai_content(prompt)
         return briefing_text
 
-    def process_expense(self, input_text: str) -> dict:
+    def process_expense(self, input_text: str, target_spreadsheet_id: str = None, parsed_data: dict = None) -> dict:
         """
-        Extracts structured expense details from text/receipt using Gemini AI,
+        Extracts structured expense details from text/receipt using Gemini AI or pre-parsed data,
         and logs it to Google Sheet & Local Excel.
         """
+        import re
         print(f"[PersonalAssistant] Processing expense input: {input_text[:50]}...")
         now_str = datetime.datetime.now().strftime("%Y-%m-%d")
 
-        prompt = f"""
+        # Extract custom Google Sheet ID from URL if present in user message
+        if not target_spreadsheet_id:
+            found_ids = re.findall(r"/spreadsheets/d/([a-zA-Z0-9-_]+)", input_text)
+            if found_ids:
+                target_spreadsheet_id = found_ids[0]
+
+        if parsed_data and parsed_data.get("amount"):
+            data = {
+                "date": parsed_data.get("date") or now_str,
+                "vendor": parsed_data.get("vendor") or "Personal Expense",
+                "amount": float(parsed_data.get("amount") or 0.0),
+                "currency": parsed_data.get("currency") or "PKR",
+                "category": parsed_data.get("category") or "Personal & Misc",
+                "description": parsed_data.get("description") or input_text[:60]
+            }
+        else:
+            amt_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:rs|pkr|usd|\$)?", input_text.lower())
+            amt_val = float(amt_match.group(1)) if amt_match else 0.0
+            try:
+                prompt = f"""
 Extract structured financial transaction data from the following text or receipt details:
 "{input_text}"
 
 Current Date: {now_str}
 
-Extract and return JSON with keys:
-- "date": "YYYY-MM-DD" (use current date if unspecified)
-- "vendor": "Name of store/vendor/payee"
-- "amount": numeric float value
-- "currency": "PKR", "USD", etc.
-- "category": Choose one of ["Food & Dining", "Tech & Subscriptions", "Utilities & Bills", "Travel & Transport", "Education & Books", "Personal & Misc"]
-- "description": Short 1-sentence description
-
 Return strict JSON:
 {{
-  "date": "2026-08-22",
+  "date": "2026-08-26",
   "vendor": "Vendor Name",
-  "amount": 50.0,
-  "currency": "USD",
-  "category": "Category",
+  "amount": {amt_val},
+  "currency": "PKR",
+  "category": "Personal & Misc",
   "description": "Short description"
 }}
 """
-        raw_json = generate_ai_content(prompt, response_mime_type="application/json")
-        data = json.loads(raw_json)
+                raw_json = generate_ai_content(prompt, response_mime_type="application/json")
+                data = json.loads(raw_json)
+            except Exception as ex:
+                print(f"[PersonalAssistant] Fast fallback parsing expense: {ex}")
+                data = {
+                    "date": now_str,
+                    "vendor": "Personal Expense",
+                    "amount": amt_val,
+                    "currency": "PKR",
+                    "category": "Personal & Misc",
+                    "description": input_text[:60]
+                }
 
         # Log to Google Sheet & Local Excel
-        self._log_expense_data(data)
+        target_info = self._log_expense_data(data, target_spreadsheet_id=target_spreadsheet_id)
+        if target_info:
+            data["target_spreadsheet_id"] = target_info.get("spreadsheet_id")
+            data["target_tab"] = target_info.get("tab")
+            data["updated_range"] = target_info.get("range")
         return data
 
-    def _log_expense_data(self, data: dict):
+    def _log_expense_data(self, data: dict, target_spreadsheet_id: str = None):
         """
         Logs extracted expense row to Google Sheet and local expense_log.xlsx
         """
@@ -202,18 +228,49 @@ Return strict JSON:
         if not self.sheets_service:
             self.initialize_services()
 
-        if self.sheets_service:
+        target_id = target_spreadsheet_id or EXPENSE_SPREADSHEET_ID
+        target_tab = EXPENSE_SHEET_NAME
+        target_range_str = f"'{target_tab}'!A:F"
+
+        if self.sheets_service and self.drive_service:
             try:
-                # Ensure sheet tab exists
+                # If target_spreadsheet_id is specified as title keyword (not ID)
+                if target_spreadsheet_id and not ("/" in target_spreadsheet_id or len(target_spreadsheet_id) > 25):
+                    from src.services.workspace_service import find_drive_file_by_name
+                    found = find_drive_file_by_name(self.drive_service, target_spreadsheet_id, file_type="spreadsheet")
+                    if found.get("file_id"):
+                        target_id = found.get("file_id")
+
+                # Get Sheet Metadata Tabs
+                meta = self.sheets_service.spreadsheets().get(spreadsheetId=target_id).execute()
+                sheet_tabs = [s['properties']['title'] for s in meta.get('sheets', [])]
+                
+                # Match tab name
+                matched_tab = None
+                for tab in sheet_tabs:
+                    if "expense" in tab.lower():
+                        matched_tab = tab
+                        break
+                if not matched_tab and sheet_tabs:
+                    matched_tab = sheet_tabs[0]
+
+                target_tab = matched_tab or EXPENSE_SHEET_NAME
+                target_range_str = f"'{target_tab}'!A:F"
+
                 body = {"values": [row]}
-                self.sheets_service.spreadsheets().values().append(
-                    spreadsheetId=EXPENSE_SPREADSHEET_ID,
-                    range=f"{EXPENSE_SHEET_NAME}!A:F",
+                res_app = self.sheets_service.spreadsheets().values().append(
+                    spreadsheetId=target_id,
+                    range=target_range_str,
                     valueInputOption="USER_ENTERED",
                     insertDataOption="INSERT_ROWS",
                     body=body
                 ).execute()
-                print("-> Appended expense to Google Sheet.")
+                print(f"-> Appended expense row to Google Sheet (Tab: '{target_tab.encode('ascii', errors='ignore').decode()}').")
+                return {
+                    "spreadsheet_id": target_id,
+                    "tab": target_tab,
+                    "range": res_app.get("updates", {}).get("updatedRange")
+                }
             except Exception as e:
                 print(f"Warning: Failed to update expense in Google Sheet: {e}")
 
