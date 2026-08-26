@@ -43,6 +43,24 @@ def send_telegram_message(text: str, chat_id: str = None, parse_mode: str = "Mar
         print(f"[Telegram] Exception sending message: {e}")
         return False
 
+def send_telegram_chat_action(chat_id: str = None, action: str = "typing") -> bool:
+    """
+    Sends chat action (e.g. 'typing', 'upload_document') to Telegram chat UI.
+    """
+    bot_token = (TELEGRAM_BOT_TOKEN or os.getenv("TELEGRAM_BOT_TOKEN", "")).strip(' "\'\t\r\n')
+    target_chat = (chat_id or TELEGRAM_CHAT_ID or os.getenv("TELEGRAM_CHAT_ID", "")).strip(' "\'\t\r\n')
+
+    if not bot_token or not target_chat:
+        return False
+
+    url = f"{TELEGRAM_API_BASE}/bot{bot_token}/sendChatAction"
+    payload = {"chat_id": target_chat, "action": action}
+    try:
+        requests.post(url, json=payload, timeout=5)
+        return True
+    except Exception:
+        return False
+
 def get_telegram_updates(offset: int = 0, timeout: int = 10) -> list:
     """
     Fetches unhandled updates (messages, commands) from the Telegram Bot API.

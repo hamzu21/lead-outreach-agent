@@ -78,6 +78,20 @@ class ConversationalAgent:
             for msg in recent_history:
                 role_label = user_name if msg["role"] == "user" else "Zeyra"
                 history_formatted += f"{role_label}: {msg['content']}\n"
+        # Fast Conversational Route for simple greetings & casual chat (< 1.5s latency)
+        lower_txt = user_text.lower().strip()
+        action_keywords = ["sheet", "doc", "email", "slide", "expense", "invoice", "search", "audit", "clear", "balance", "remind", "draft", "brief", "radar", "vault", "pdf", "book", "chapter", "topic"]
+        is_action_request = any(kw in lower_txt for kw in action_keywords)
+        
+        if not is_action_request and len(user_text.split()) <= 12:
+            try:
+                chat_prompt = f"{SYSTEM_INSTRUCTION}\nActive Speaker: {user_name}\n{history_formatted}\nUser: {user_text}\nZeyra:"
+                conv_reply = generate_ai_content(chat_prompt)
+                save_message(chat_id, "user", user_text)
+                save_message(chat_id, "assistant", conv_reply)
+                return conv_reply
+            except Exception as ce:
+                print(f"[ConversationalAgent] Fast route exception: {ce}")
 
         intent_prompt = f"""
 {SYSTEM_INSTRUCTION}

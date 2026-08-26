@@ -233,12 +233,17 @@ def run_telegram_bot_loop():
 
                 # 3. Full Conversational Engine (Memory + Agentic Tool Execution)
                 if text:
-                    try:
-                        reply = agent.process_message(chat_id=chat_id, user_text=text)
-                        send_telegram_message(reply, chat_id=chat_id)
-                    except Exception as me:
-                        print(f"[Zeyra Agent] Error processing message from {chat_id}: {me}")
-                        send_telegram_message(f"⚠️ Apologies Hamza, an error occurred while processing: {me}", chat_id=chat_id)
+                    def process_message_async(c_id, u_text):
+                        try:
+                            from src.services.telegram_service import send_telegram_chat_action
+                            send_telegram_chat_action(c_id, action="typing")
+                            reply = agent.process_message(chat_id=c_id, user_text=u_text)
+                            send_telegram_message(reply, chat_id=c_id)
+                        except Exception as me:
+                            print(f"[Zeyra Agent] Error processing message from {c_id}: {me}")
+                            send_telegram_message(f"⚠️ Apologies Hamza, an error occurred while processing: {me}", chat_id=c_id)
+
+                    threading.Thread(target=process_message_async, args=(chat_id, text), daemon=True).start()
 
         except KeyboardInterrupt:
             print("\n[Zeyra Agent] Stopped by user.")

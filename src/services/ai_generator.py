@@ -20,11 +20,8 @@ def get_ai_client():
     return _client
 
 FALLBACK_MODELS = [
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
-    "gemini-3.5-flash-lite",
-    "gemini-3.5-flash",
-    "gemini-flash-latest"
+    "gemini-3.6-flash",
+    "gemini-3.5-flash-lite"
 ]
 
 def generate_ai_content(prompt: str, response_mime_type: str = None) -> str:
@@ -56,15 +53,15 @@ def generate_ai_content(prompt: str, response_mime_type: str = None) -> str:
                 elif "404" in str(e) or "NOT_FOUND" in str(e):
                     continue
                 else:
-                    time.sleep(0.3)
+                    time.sleep(0.2)
                     continue
             except Exception as e:
                 last_exception = e
-                time.sleep(0.3)
+                time.sleep(0.2)
                 continue
 
         if attempt < max_network_retries:
-            time.sleep(1)
+            time.sleep(0.3)
 
     if last_exception:
         raise last_exception
