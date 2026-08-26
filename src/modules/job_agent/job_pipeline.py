@@ -16,7 +16,7 @@ class JobApplicationAgent:
 
     def initialize_services(self):
         print("Initializing Google API services for Job Agent...")
-        self.sheets_service, self.gmail_service = get_google_services()
+        self.sheets_service, self.gmail_service, _, _ = get_google_services()
 
     def run(self):
         if not self.sheets_service or not self.gmail_service:
