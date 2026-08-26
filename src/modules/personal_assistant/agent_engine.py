@@ -106,17 +106,18 @@ Current Local Time (Pakistan Standard Time PKT, UTC+5 / Asia/Karachi): {current_
 {history_formatted}
 {user_name}'s Latest Message: "{user_text}"
 
-Analyze the user's message and determine if an action tool is reReturn JSON with format:
-{
+Analyze the user's message and determine if an action tool is required.
+Return JSON with format:
+{{
   "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "REPLY_EMAIL" | "TRASH_EMAIL" | "JOB_AGENT" | "CREATE_DOC" | "CREATE_SHEET" | "MANAGE_WORKSPACE_FILE" | "LIST_WORKSPACE_FILES" | "CREATE_INVOICE" | "AUDIT_WEBSITE" | "TECH_RADAR" | "SET_REMINDER" | "LIST_REMINDERS" | "CREATE_SLIDES" | "CLEAR_SHEET_DATA" | "GENERAL_CONVERSATION",
   "expense_details": "Extracted expense text if intent is EXPENSE_LOG, else empty string",
-  "parsed_expense": {
+  "parsed_expense": {{
     "amount": 500.0,
     "vendor": "Store or payee name",
     "category": "Personal & Misc",
     "currency": "PKR",
     "description": "Short note"
-  },
+  }},
   "draft_id": "Extracted draft ID if intent is SEND_DRAFT, else empty string",
   "to_email": "Extracted recipient email address, brand name, or sender keyword (e.g. 'duolingo', 'zeusmr777@gmail.com', 'linkedin') if intent is SEND_EMAIL, REPLY_EMAIL, or TRASH_EMAIL, else empty string",
   "email_subject": "Professional email subject line if intent is SEND_EMAIL or REPLY_EMAIL, else empty string",
@@ -134,7 +135,7 @@ Analyze the user's message and determine if an action tool is reReturn JSON with
   "reminder_text": "Extracted task description if intent is SET_REMINDER, else empty string",
   "remind_at_datetime": "Calculated target date and time in format 'YYYY-MM-DD HH:MM:SS' based on user's instruction and Current Local Server Time if intent is SET_REMINDER, else empty string",
   "response": "Your direct, conversational response to the user. If an action tool will be executed, write a brief friendly intro."
-}
+}}
 """
         try:
             raw_res = generate_ai_content(intent_prompt, response_mime_type="application/json")
