@@ -203,11 +203,13 @@ Return JSON with format:
                 target_kw = to_email_val or user_text
                 res = self.pa_service.trash_email(target_kw)
                 if res.get("success"):
+                    count_val = res.get("count", 1)
                     final_reply = (
-                        f"🗑️ *Email Moved to Trash Successfully!*\n\n"
+                        f"🗑️ *Emails Moved to Trash Successfully!*\n\n"
                         f"• *Target/Keyword*: `{target_kw}`\n"
-                        f"• *Message ID*: `{res.get('msg_id')}`\n\n"
-                        f"_(The matching email has been moved to your Gmail Trash bin.)_"
+                        f"• *Emails Trashed*: `{count_val} matching email(s)`\n"
+                        f"• *Sample Message ID*: `{res.get('msg_id')}`\n\n"
+                        f"_(The matching emails have been moved to your Gmail Trash bin.)_"
                     )
                 else:
                     final_reply = f"⚠️ Could not delete email: {res.get('error')}"
