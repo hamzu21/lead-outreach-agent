@@ -5,3 +5,4 @@ from .professor_outreach import (
     build_academic_email_body,
     get_academic_cv_pdf
 )
+from .professor_scraper import scrape_university_faculty_page

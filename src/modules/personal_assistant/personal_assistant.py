@@ -826,6 +826,11 @@ Return strict JSON:
         from src.modules.academic_outreach import send_approved_academic_drafts
         return send_approved_academic_drafts(draft_ids=draft_ids)
 
+    def extract_professors_from_url(self, url: str, fields: str = "AI, Cyber Security, Computer Science") -> dict:
+        """Scrapes a university faculty page, extracts professors, generates a styled Google Sheet on Google Drive, and returns the view URL."""
+        from src.modules.academic_outreach import scrape_university_faculty_page
+        return scrape_university_faculty_page(url, target_fields=fields)
+
 
 def run_morning_brief_agent(send_telegram: bool = True):
     service = PersonalAssistantService()

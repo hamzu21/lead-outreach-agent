@@ -109,10 +109,11 @@ Current Local Time (Pakistan Standard Time PKT, UTC+5 / Asia/Karachi): {current_
 CRITICAL RULE FOR EMAIL DELETION & CHECKING:
 1. If user asks to delete, trash, or remove emails (e.g. 'duolingo ki delete krdo', 'delete krdo', 'hata do'), set "intent": "TRASH_EMAIL" and extract keyword in "to_email".
 2. If user asks to check, verify, or count remaining emails (e.g. 'or bhi hain bayt ki emails?', 'check kro emails hain ya nahi', 'kitni emails baqi hain'), set "intent": "CHECK_EMAILS" and extract keyword (e.g. 'bayt', 'duolingo') in "to_email".
+3. If user provides a university faculty URL (e.g. 'https://www.kaust.edu.sa/en/study/faculty') and asks to extract/find professors in AI, Cyber Security, or CS, set "intent": "SCRAPE_FACULTY" and extract URL in "audit_url".
 
 Return JSON with format:
 {{
-  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "REPLY_EMAIL" | "TRASH_EMAIL" | "CHECK_EMAILS" | "JOB_AGENT" | "ACADEMIC_OUTREACH" | "CREATE_DOC" | "CREATE_SHEET" | "MANAGE_WORKSPACE_FILE" | "LIST_WORKSPACE_FILES" | "CREATE_INVOICE" | "AUDIT_WEBSITE" | "TECH_RADAR" | "SET_REMINDER" | "LIST_REMINDERS" | "CREATE_SLIDES" | "CLEAR_SHEET_DATA" | "GENERAL_CONVERSATION",
+  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "REPLY_EMAIL" | "TRASH_EMAIL" | "CHECK_EMAILS" | "JOB_AGENT" | "ACADEMIC_OUTREACH" | "SCRAPE_FACULTY" | "CREATE_DOC" | "CREATE_SHEET" | "MANAGE_WORKSPACE_FILE" | "LIST_WORKSPACE_FILES" | "CREATE_INVOICE" | "AUDIT_WEBSITE" | "TECH_RADAR" | "SET_REMINDER" | "LIST_REMINDERS" | "CREATE_SLIDES" | "CLEAR_SHEET_DATA" | "GENERAL_CONVERSATION",
   "expense_details": "Extracted expense text if intent is EXPENSE_LOG, else empty string",
   "parsed_expense": {{
     "amount": 500.0,
@@ -127,14 +128,14 @@ Return JSON with format:
   "email_body": "Well-formatted professional email body text if intent is SEND_EMAIL, else empty string",
   "reply_instructions": "Extracted user reply instructions if intent is REPLY_EMAIL, else empty string",
   "doc_title": "Extracted document or spreadsheet title if intent is CREATE_DOC, CREATE_SHEET, MANAGE_WORKSPACE_FILE, or CLEAR_SHEET_DATA, else empty string",
-  "doc_instructions": "Extracted instructions or content details if intent is CREATE_DOC or CREATE_SHEET, else empty string",
+  "doc_instructions": "Extracted instructions or content details if intent is CREATE_DOC, CREATE_SHEET, or SCRAPE_FACULTY (e.g. 'AI, Cyber Security'), else empty string",
   "starting_balance": "Extracted numerical starting bank balance if user specifies starting balance (e.g. 14100), else empty string",
   "client_name": "Extracted client name if intent is CREATE_INVOICE, else empty string",
   "invoice_amount": "Extracted numerical amount if intent is CREATE_INVOICE, else empty string",
   "invoice_currency": "Extracted currency code like USD or PKR if intent is CREATE_INVOICE, default USD",
   "invoice_desc": "Extracted work description if intent is CREATE_INVOICE, default 'Software Development Services'",
   "send_invoice_email": true if user asks to email or send the invoice to client email, else false,
-  "audit_url": "Extracted website URL if intent is AUDIT_WEBSITE, else empty string",
+  "audit_url": "Extracted website or faculty URL if intent is AUDIT_WEBSITE or SCRAPE_FACULTY, else empty string",
   "reminder_text": "Extracted task description if intent is SET_REMINDER, else empty string",
   "remind_at_datetime": "Calculated target date and time in format 'YYYY-MM-DD HH:MM:SS' based on user's instruction and Current Local Server Time if intent is SET_REMINDER, else empty string",
   "response": "Your direct, conversational response to the user. If an action tool will be executed, write a brief friendly intro."
@@ -175,13 +176,16 @@ Return JSON with format:
 
             final_reply = base_response
 
-            # 1.4 Safety Net Override for Email Deletion vs Email Check Intent
+            # 1.4 Safety Net Override for Email Deletion vs Email Check vs Faculty Scraping Intent
             del_words = ["delete", "trash", "hata", "remove", "khatam"]
             check_words = ["check", "dekh", "kitni", "or bhi", "aur bhi", "baqi", "remains", "bhi hain", "kya hain"]
             mail_words = ["email", "emails", "mail", "inbox", "duolingo", "freelancer", "alibaba", "linkedin", "bayt"]
             lower_u = user_text.lower()
-            
-            if any(m in lower_u for m in mail_words):
+
+            if "http" in lower_u and any(w in lower_u for w in ["faculty", "professor", "professors", "kaust", "data nikaal", "data nikal", "list", "extract"]):
+                print(f"[ConversationalAgent] Safety Override: Forcing SCRAPE_FACULTY intent for: {user_text}")
+                intent = "SCRAPE_FACULTY"
+            elif any(m in lower_u for m in mail_words):
                 if any(c in lower_u for c in check_words) and not any(d in lower_u for d in ["delete kr", "saari delete", "trash kr"]):
                     print(f"[ConversationalAgent] Safety Override: Forcing CHECK_EMAILS intent for: {user_text}")
                     intent = "CHECK_EMAILS"
@@ -192,6 +196,7 @@ Return JSON with format:
 
             # 1.5 Send instant preliminary status update for time-taking tasks to eliminate user waiting perception
             status_messages = {
+                "SCRAPE_FACULTY": "🎓 *Ji Hamza, main university website scan karke professors ka data extract aur Google Sheet generate kar rahi hoon...* ⏳",
                 "ACADEMIC_OUTREACH": "🎓 *Ji Hamza, main Academic Professor Outreach campaign start kar rahi hoon (Semantic Scholar paper research + CV attachment)...* ⏳",
                 "CHECK_EMAILS": "🔍 *Ji Hamza, main live Gmail scan karke count verify kar rahi hoon...* ⏳",
                 "TRASH_EMAIL": "🗑️ *Ji Hamza, main email trash/delete kar rahi hoon...* ⏳",
@@ -469,6 +474,34 @@ Return JSON with format:
                     )
                 else:
                     final_reply = f"⚠️ Could not create professor outreach drafts: {res.get('error')}"
+
+            elif intent == "SCRAPE_FACULTY":
+                import re
+                target_url = audit_url_val
+                if not target_url or "http" not in target_url:
+                    urls = re.findall(r'https?://[^\s]+', user_text)
+                    target_url = urls[0] if urls else ""
+
+                if target_url:
+                    res = self.pa_service.extract_professors_from_url(target_url, fields=doc_inst_val or "AI, Cyber Security, Computer Science")
+                    if res.get("success"):
+                        sheet_url = res.get("url")
+                        univ = res.get("university", "University")
+                        cnt = res.get("count", 0)
+                        link_msg = f"\n\n🔗 [Open & Edit Target Google Sheet]({sheet_url})" if sheet_url else ""
+                        final_reply = (
+                            f"📑 *Google Spreadsheet Generated for {univ} Professors!* 🎓\n\n"
+                            f"• *University*: {univ} ({res.get('country')})\n"
+                            f"• *Professors Extracted*: `{cnt}`\n"
+                            f"• *Target Fields*: `{res.get('target_fields')}`\n"
+                            f"• *Access*: Anyone with link can view/edit"
+                            f"{link_msg}\n\n"
+                            f"_(Appended to local professors_list.csv for Academic Outreach Agent!)_"
+                        )
+                    else:
+                        final_reply = f"⚠️ Could not extract faculty data: {res.get('error')}"
+                else:
+                    final_reply = "⚠️ Please provide a valid university faculty page URL (e.g. https://www.kaust.edu.sa/en/study/faculty)."
 
             elif intent == "SET_REMINDER":
                 rem_text = reminder_text_val or user_text
