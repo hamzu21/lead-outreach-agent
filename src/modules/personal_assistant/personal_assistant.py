@@ -426,14 +426,17 @@ Return strict JSON:
             print(f"[PersonalAssistant] Error sending draft {draft_id}: {e}")
             return False
 
-    def trash_email(self, message_id: str) -> bool:
+    def trash_email(self, message_id_or_keyword: str) -> dict:
         """
-        Moves a message/draft to Trash.
+        Moves a matching email message/draft to Gmail Trash bin.
         """
         if not self.gmail_service:
             self.initialize_services()
         if not self.gmail_service:
-            return False
+            return {"success": False, "error": "Gmail service unavailable"}
+
+        from src.services.gmail_service import trash_gmail_message
+        return trash_gmail_message(self.gmail_service, message_id_or_keyword)
 
     def send_email(self, to_email: str, subject: str, body_text: str, attachment_path: str = None) -> dict:
         """

@@ -45,3 +45,35 @@ def send_gmail_message(gmail_service, to_email: str, subject: str, body_text: st
         body={"raw": encoded}
     ).execute()
     return sent_msg.get("id")
+
+def trash_gmail_message(gmail_service, message_id_or_keyword: str) -> dict:
+    """
+    Moves matching email message to Gmail Trash bin by message ID or sender/keyword.
+    """
+    if not gmail_service:
+        return {"success": False, "error": "Gmail service unavailable"}
+
+    try:
+        msg_id = message_id_or_keyword.strip()
+        # If keyword instead of raw ID (e.g. 'duolingo' or 'newsletter')
+        if " " in msg_id or len(msg_id) < 10 or "@" in msg_id:
+            res = gmail_service.users().messages().list(
+                userId="me",
+                q=msg_id,
+                maxResults=5
+            ).execute()
+            msgs = res.get("messages", [])
+            if not msgs:
+                return {"success": False, "error": f"No emails found matching '{message_id_or_keyword}'"}
+            msg_id = msgs[0]["id"]
+
+        # Move to Trash using Gmail API
+        gmail_service.users().messages().trash(
+            userId="me",
+            id=msg_id
+        ).execute()
+        print(f"[GmailService] Trashed message ID: {msg_id}")
+        return {"success": True, "msg_id": msg_id}
+    except Exception as e:
+        print(f"[GmailService] Error trashing email '{message_id_or_keyword}': {e}")
+        return {"success": False, "error": str(e)}
