@@ -106,12 +106,13 @@ Current Local Time (Pakistan Standard Time PKT, UTC+5 / Asia/Karachi): {current_
 {history_formatted}
 {user_name}'s Latest Message: "{user_text}"
 
-CRITICAL RULE FOR EMAIL DELETION:
-If the user asks to delete, trash, remove, or clear emails (in English or Roman Urdu, e.g. 'duolingo ki delete krdo', 'delete krdo', 'still delete ni hui', 'hata do', 'bhi delete krdo'), you MUST set "intent": "TRASH_EMAIL" and set "to_email" to the target email sender or brand name (e.g. 'duolingo', 'alibaba', 'freelancer').
+CRITICAL RULE FOR EMAIL DELETION & CHECKING:
+1. If user asks to delete, trash, or remove emails (e.g. 'duolingo ki delete krdo', 'delete krdo', 'hata do'), set "intent": "TRASH_EMAIL" and extract keyword in "to_email".
+2. If user asks to check, verify, or count remaining emails (e.g. 'or bhi hain bayt ki emails?', 'check kro emails hain ya nahi', 'kitni emails baqi hain'), set "intent": "CHECK_EMAILS" and extract keyword (e.g. 'bayt', 'duolingo') in "to_email".
 
 Return JSON with format:
 {{
-  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "REPLY_EMAIL" | "TRASH_EMAIL" | "JOB_AGENT" | "CREATE_DOC" | "CREATE_SHEET" | "MANAGE_WORKSPACE_FILE" | "LIST_WORKSPACE_FILES" | "CREATE_INVOICE" | "AUDIT_WEBSITE" | "TECH_RADAR" | "SET_REMINDER" | "LIST_REMINDERS" | "CREATE_SLIDES" | "CLEAR_SHEET_DATA" | "GENERAL_CONVERSATION",
+  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "REPLY_EMAIL" | "TRASH_EMAIL" | "CHECK_EMAILS" | "JOB_AGENT" | "CREATE_DOC" | "CREATE_SHEET" | "MANAGE_WORKSPACE_FILE" | "LIST_WORKSPACE_FILES" | "CREATE_INVOICE" | "AUDIT_WEBSITE" | "TECH_RADAR" | "SET_REMINDER" | "LIST_REMINDERS" | "CREATE_SLIDES" | "CLEAR_SHEET_DATA" | "GENERAL_CONVERSATION",
   "expense_details": "Extracted expense text if intent is EXPENSE_LOG, else empty string",
   "parsed_expense": {{
     "amount": 500.0,
@@ -121,7 +122,7 @@ Return JSON with format:
     "description": "Short note"
   }},
   "draft_id": "Extracted draft ID if intent is SEND_DRAFT, else empty string",
-  "to_email": "Extracted recipient email address, brand name, or sender keyword (e.g. 'duolingo', 'zeusmr777@gmail.com', 'linkedin') if intent is SEND_EMAIL, REPLY_EMAIL, or TRASH_EMAIL, else empty string",
+  "to_email": "Extracted recipient email address, brand name, or sender keyword (e.g. 'duolingo', 'bayt', 'zeusmr777@gmail.com', 'linkedin') if intent is SEND_EMAIL, REPLY_EMAIL, TRASH_EMAIL, or CHECK_EMAILS, else empty string",
   "email_subject": "Professional email subject line if intent is SEND_EMAIL or REPLY_EMAIL, else empty string",
   "email_body": "Well-formatted professional email body text if intent is SEND_EMAIL, else empty string",
   "reply_instructions": "Extracted user reply instructions if intent is REPLY_EMAIL, else empty string",
@@ -174,17 +175,24 @@ Return JSON with format:
 
             final_reply = base_response
 
-            # 1.4 Safety Net Override for Email Deletion Intent
+            # 1.4 Safety Net Override for Email Deletion vs Email Check Intent
             del_words = ["delete", "trash", "hata", "remove", "khatam"]
-            mail_words = ["email", "emails", "mail", "inbox", "duolingo", "freelancer", "alibaba", "linkedin"]
+            check_words = ["check", "dekh", "kitni", "or bhi", "aur bhi", "baqi", "remains", "bhi hain", "kya hain"]
+            mail_words = ["email", "emails", "mail", "inbox", "duolingo", "freelancer", "alibaba", "linkedin", "bayt"]
             lower_u = user_text.lower()
-            if any(w in lower_u for w in del_words) and any(m in lower_u for m in mail_words):
-                if intent != "TRASH_EMAIL":
-                    print(f"[ConversationalAgent] Safety Override: Forcing TRASH_EMAIL intent for: {user_text}")
-                    intent = "TRASH_EMAIL"
+            
+            if any(m in lower_u for m in mail_words):
+                if any(c in lower_u for c in check_words) and not any(d in lower_u for d in ["delete kr", "saari delete", "trash kr"]):
+                    print(f"[ConversationalAgent] Safety Override: Forcing CHECK_EMAILS intent for: {user_text}")
+                    intent = "CHECK_EMAILS"
+                elif any(w in lower_u for w in del_words):
+                    if intent != "TRASH_EMAIL":
+                        print(f"[ConversationalAgent] Safety Override: Forcing TRASH_EMAIL intent for: {user_text}")
+                        intent = "TRASH_EMAIL"
 
             # 1.5 Send instant preliminary status update for time-taking tasks to eliminate user waiting perception
             status_messages = {
+                "CHECK_EMAILS": "🔍 *Ji Hamza, main live Gmail scan karke count verify kar rahi hoon...* ⏳",
                 "TRASH_EMAIL": "🗑️ *Ji Hamza, main email trash/delete kar rahi hoon...* ⏳",
                 "WEB_SEARCH": "🔍 *Ji Hamza, main live web search karke info gather kar rahi hoon...* ⏳",
                 "CREATE_SLIDES": "📊 *Ji Hamza, main presentation slides design aur generate kar rahi hoon...* ⏳",
@@ -210,15 +218,44 @@ Return JSON with format:
                 brief_content = self.pa_service.get_morning_briefing()
                 final_reply = f"{base_response}\n\n{brief_content}"
 
+            elif intent == "CHECK_EMAILS":
+                target_kw = to_email_val or user_text
+                import re
+                clean_kw = re.sub(r"(?i)\b(or|aur|bhi|hain|check|kro|karo|emails|email|delete|hui|ya|nahi|baqi)\b", "", target_kw).strip(" ?.,!")
+                clean_kw = clean_kw or target_kw
+                res = self.pa_service.check_email_count(clean_kw)
+                if res.get("success"):
+                    active_cnt = res.get("active_count", 0)
+                    trash_cnt = res.get("trash_count", 0)
+                    if active_cnt > 0:
+                        final_reply = (
+                            f"🔍 *Live Gmail Check Result for `{clean_kw}`*:\n\n"
+                            f"• 📥 *Active Inbox Emails*: `{active_cnt}`\n"
+                            f"• 🗑️ *Emails in Trash*: `{trash_cnt}`\n\n"
+                            f"💡 *Hamza, active inbox me abhi bhi {active_cnt} emails baqi hain!* Kya main inhein bhi trash kar doon?"
+                        )
+                    else:
+                        final_reply = (
+                            f"✅ *Live Gmail Verification Complete for `{clean_kw}`*:\n\n"
+                            f"• 📥 *Active Inbox Emails*: `0` (100% Cleared!)\n"
+                            f"• 🗑️ *Emails in Trash*: `{trash_cnt}`\n\n"
+                            f"🎉 *`{clean_kw}` ki tamam emails trash me move ho chuki hain! Inbox me 0 emails baqi hain.*"
+                        )
+                else:
+                    final_reply = f"⚠️ Could not verify email count: {res.get('error')}"
+
             elif intent == "TRASH_EMAIL":
                 target_kw = to_email_val or user_text
                 res = self.pa_service.trash_email(target_kw)
                 if res.get("success"):
                     count_val = res.get("count", 1)
+                    rem_val = res.get("remaining", 0)
+                    rem_str = f"• 📥 *Remaining Active Emails*: `{rem_val}`\n" if rem_val > 0 else "• 📥 *Remaining Active Emails*: `0` (All Cleared!)\n"
                     final_reply = (
                         f"🗑️ *Emails Moved to Trash Successfully!*\n\n"
                         f"• *Target/Keyword*: `{target_kw}`\n"
                         f"• *Emails Trashed*: `{count_val} matching email(s)`\n"
+                        f"{rem_str}"
                         f"• *Sample Message ID*: `{res.get('msg_id')}`\n\n"
                         f"_(The matching emails have been moved to your Gmail Trash bin.)_"
                     )

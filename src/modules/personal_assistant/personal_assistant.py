@@ -438,6 +438,18 @@ Return strict JSON:
         from src.services.gmail_service import trash_gmail_message
         return trash_gmail_message(self.gmail_service, message_id_or_keyword)
 
+    def check_email_count(self, keyword_or_query: str) -> dict:
+        """
+        Checks real-time Gmail count for matching active inbox emails vs trashed emails.
+        """
+        if not self.gmail_service:
+            self.initialize_services()
+        if not self.gmail_service:
+            return {"success": False, "error": "Gmail service unavailable"}
+
+        from src.services.gmail_service import check_matching_emails_count
+        return check_matching_emails_count(self.gmail_service, keyword_or_query)
+
     def send_email(self, to_email: str, subject: str, body_text: str, attachment_path: str = None) -> dict:
         """
         Composes and sends an email directly via Gmail API with optional file attachment.
