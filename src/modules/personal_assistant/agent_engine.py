@@ -106,7 +106,9 @@ Current Local Time (Pakistan Standard Time PKT, UTC+5 / Asia/Karachi): {current_
 {history_formatted}
 {user_name}'s Latest Message: "{user_text}"
 
-Analyze the user's message and determine if an action tool is required.
+CRITICAL RULE FOR EMAIL DELETION:
+If the user asks to delete, trash, remove, or clear emails (in English or Roman Urdu, e.g. 'duolingo ki delete krdo', 'delete krdo', 'still delete ni hui', 'hata do', 'bhi delete krdo'), you MUST set "intent": "TRASH_EMAIL" and set "to_email" to the target email sender or brand name (e.g. 'duolingo', 'alibaba', 'freelancer').
+
 Return JSON with format:
 {{
   "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "REPLY_EMAIL" | "TRASH_EMAIL" | "JOB_AGENT" | "CREATE_DOC" | "CREATE_SHEET" | "MANAGE_WORKSPACE_FILE" | "LIST_WORKSPACE_FILES" | "CREATE_INVOICE" | "AUDIT_WEBSITE" | "TECH_RADAR" | "SET_REMINDER" | "LIST_REMINDERS" | "CREATE_SLIDES" | "CLEAR_SHEET_DATA" | "GENERAL_CONVERSATION",
@@ -171,6 +173,15 @@ Return JSON with format:
             remind_at_val = res_data.get("remind_at_datetime", "").strip()
 
             final_reply = base_response
+
+            # 1.4 Safety Net Override for Email Deletion Intent
+            del_words = ["delete", "trash", "hata", "remove", "khatam"]
+            mail_words = ["email", "emails", "mail", "inbox", "duolingo", "freelancer", "alibaba", "linkedin"]
+            lower_u = user_text.lower()
+            if any(w in lower_u for w in del_words) and any(m in lower_u for m in mail_words):
+                if intent != "TRASH_EMAIL":
+                    print(f"[ConversationalAgent] Safety Override: Forcing TRASH_EMAIL intent for: {user_text}")
+                    intent = "TRASH_EMAIL"
 
             # 1.5 Send instant preliminary status update for time-taking tasks to eliminate user waiting perception
             status_messages = {
