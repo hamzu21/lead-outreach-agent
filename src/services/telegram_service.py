@@ -59,7 +59,9 @@ def get_telegram_updates(offset: int = 0, timeout: int = 10) -> list:
         res_data = response.json()
         if res_data.get("ok"):
             return res_data.get("result", [])
-        return []
+        else:
+            print(f"[Telegram API Warning] getUpdates error: {res_data.get('description')}")
+            return []
     except (requests.exceptions.Timeout, requests.exceptions.ReadTimeout):
         # Long polling timeout is expected when no new messages arrive within the timeout window
         return []
