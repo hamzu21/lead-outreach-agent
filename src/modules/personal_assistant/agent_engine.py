@@ -201,8 +201,9 @@ Return JSON with format:
             elif intent == "EXPENSE_LOG":
                 combined_exp_text = f"{user_text} {expense_text}"
                 parsed_exp_obj = res_data.get("parsed_expense")
-                exp_data = self.pa_service.process_expense(combined_exp_text, parsed_data=parsed_exp_obj)
-                target_sheet_id = exp_data.get("target_spreadsheet_id")
+                target_kw = doc_title_val.strip() if doc_title_val and doc_title_val != "Untitled Workspace File" else None
+                exp_data = self.pa_service.process_expense(combined_exp_text, parsed_data=parsed_exp_obj, target_spreadsheet_id=target_kw)
+                target_sheet_id = exp_data.get("target_spreadsheet_id") or exp_data.get("spreadsheet_id")
                 target_tab = exp_data.get("target_tab", "Expenses")
                 target_url = f"https://docs.google.com/spreadsheets/d/{target_sheet_id}/edit?usp=sharing" if target_sheet_id else ""
                 link_str = f"\n\n🔗 [Open & View Target Google Sheet]({target_url})" if target_url else ""

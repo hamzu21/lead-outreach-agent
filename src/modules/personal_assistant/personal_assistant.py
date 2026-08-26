@@ -225,32 +225,54 @@ Return strict JSON:
         row = [date_val, vendor_val, amount_val, currency_val, category_val, desc_val]
 
         # 1. Update Google Sheet
-        if not self.sheets_service:
+        if not self.sheets_service or not self.drive_service:
             self.initialize_services()
 
-        target_id = target_spreadsheet_id or EXPENSE_SPREADSHEET_ID
-        target_tab = EXPENSE_SHEET_NAME
-        target_range_str = f"'{target_tab}'!A:F"
+        target_id = target_spreadsheet_id
 
         if self.sheets_service and self.drive_service:
             try:
                 # If target_spreadsheet_id is specified as title keyword (not ID)
-                if target_spreadsheet_id and not ("/" in target_spreadsheet_id or len(target_spreadsheet_id) > 25):
+                if target_id and not ("/" in target_id or len(target_id) > 25):
                     from src.services.workspace_service import find_drive_file_by_name
-                    found = find_drive_file_by_name(self.drive_service, target_spreadsheet_id, file_type="spreadsheet")
+                    found = find_drive_file_by_name(self.drive_service, target_id, file_type="spreadsheet")
                     if found.get("file_id"):
                         target_id = found.get("file_id")
+
+                # Search Google Drive for active Finance / Monthly Expenses sheet if no target specified or resolution failed
+                if not target_id or len(target_id) < 25:
+                    from src.services.workspace_service import find_drive_file_by_name
+                    for kw in ["Professional Monthly Expenses Management", "Expenses", "Finance", "Monthly Expenses", "Budget", "Personal Finance Tracker"]:
+                        found = find_drive_file_by_name(self.drive_service, kw, file_type="spreadsheet")
+                        if found.get("file_id"):
+                            target_id = found.get("file_id")
+                            print(f"[PersonalAssistant] Auto-matched Finance Sheet on Drive: '{found.get('file_name')}' (ID: {target_id})")
+                            break
+
+                if not target_id:
+                    target_id = EXPENSE_SPREADSHEET_ID or SPREADSHEET_ID
 
                 # Get Sheet Metadata Tabs
                 meta = self.sheets_service.spreadsheets().get(spreadsheetId=target_id).execute()
                 sheet_tabs = [s['properties']['title'] for s in meta.get('sheets', [])]
                 
-                # Match tab name
+                # Match Tab Name: Udhaar vs Expenses vs Income
                 matched_tab = None
-                for tab in sheet_tabs:
-                    if "expense" in tab.lower():
-                        matched_tab = tab
-                        break
+                combined_desc = f"{category_val} {desc_val} {vendor_val}".lower()
+                is_udhaar = any(kw in combined_desc for kw in ["udhaar", "debt", "borrow", "lent", "receivable", "payable", "loan"])
+                
+                if is_udhaar:
+                    for tab in sheet_tabs:
+                        if any(kw in tab.lower() for kw in ["udhaar", "loan", "debt"]):
+                            matched_tab = tab
+                            break
+
+                if not matched_tab:
+                    for tab in sheet_tabs:
+                        if "expense" in tab.lower():
+                            matched_tab = tab
+                            break
+
                 if not matched_tab and sheet_tabs:
                     matched_tab = sheet_tabs[0]
 
@@ -265,8 +287,9 @@ Return strict JSON:
                     insertDataOption="INSERT_ROWS",
                     body=body
                 ).execute()
-                print(f"-> Appended expense row to Google Sheet (Tab: '{target_tab.encode('ascii', errors='ignore').decode()}').")
+                print(f"-> Appended expense row to Google Sheet '{target_id}' (Tab: '{target_tab.encode('ascii', errors='ignore').decode()}').")
                 return {
+                    "target_spreadsheet_id": target_id,
                     "spreadsheet_id": target_id,
                     "tab": target_tab,
                     "range": res_app.get("updates", {}).get("updatedRange")
