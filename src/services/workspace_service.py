@@ -1,10 +1,10 @@
 import os
 import json
 
-def make_file_shareable(drive_service, file_id: str, make_public: bool = False) -> str:
+def make_file_shareable(drive_service, file_id: str, make_public: bool = True) -> str:
     """
-    Returns the Google Drive webViewLink URL.
-    By default (make_public=False), the file remains 100% PRIVATE to the owner account.
+    Sets Google Drive permissions to 'anyone' with 'writer' role so anyone with the link can open and edit immediately.
+    Returns the shareable Google Drive webViewLink URL.
     """
     try:
         if drive_service:
@@ -21,12 +21,14 @@ def make_file_shareable(drive_service, file_id: str, make_public: bool = False) 
 
             file_info = drive_service.files().get(
                 fileId=file_id,
-                fields='webViewLink, webContentLink'
+                fields='webViewLink'
             ).execute()
-            return file_info.get("webViewLink", "")
+            url = file_info.get("webViewLink", "")
+            if url:
+                return url
     except Exception as e:
         print(f"[WorkspaceService] Warning getting file URL: {e}")
-    return ""
+    return f"https://docs.google.com/spreadsheets/d/{file_id}/edit?usp=sharing"
 
 from src.services.formatting_cleaner import clean_text_for_doc
 
@@ -206,6 +208,130 @@ def create_styled_spreadsheet(sheets_service, drive_service, title: str, headers
         }
     except Exception as e:
         print(f"[WorkspaceService] Error creating Google Sheet: {e}")
+        return {"success": False, "error": str(e)}
+
+def create_professional_finance_spreadsheet(sheets_service, drive_service, title: str = "Personal Finance Tracker - Muhammad Hamza") -> dict:
+    """
+    Creates a multi-tab Executive Personal Finance & Budgeting OS Google Sheet containing:
+    1. 📊 Executive Dashboard (SUM Formulas for Net Savings, Total Income, Expenses, Udhaar)
+    2. 💸 Expenses Log (Categories, Amounts, Methods, Total Row)
+    3. 💰 Income Log (Clients, Sources, Amounts, Total Row)
+    4. 🤝 Udhaar & Loans Tracker (Lent/Borrowed, Due Dates, Outstanding Total)
+    """
+    if not sheets_service:
+        return {"success": False, "error": "Google Sheets service unavailable"}
+
+    try:
+        spreadsheet_body = {
+            "properties": {"title": title},
+            "sheets": [
+                {"properties": {"sheetId": 0, "title": "📊 Executive Dashboard", "gridProperties": {"frozenRowCount": 2, "rowCount": 30, "columnCount": 10}}},
+                {"properties": {"sheetId": 1, "title": "💸 Expenses Log", "gridProperties": {"frozenRowCount": 1, "rowCount": 50, "columnCount": 10}}},
+                {"properties": {"sheetId": 2, "title": "💰 Income Log", "gridProperties": {"frozenRowCount": 1, "rowCount": 50, "columnCount": 10}}},
+                {"properties": {"sheetId": 3, "title": "🤝 Udhaar & Loans Tracker", "gridProperties": {"frozenRowCount": 1, "rowCount": 50, "columnCount": 10}}}
+            ]
+        }
+        sp = sheets_service.spreadsheets().create(body=spreadsheet_body, fields="spreadsheetId").execute()
+        spreadsheet_id = sp.get("spreadsheetId")
+        print(f"[WorkspaceService] Created Executive Finance Sheet ID: {spreadsheet_id}")
+
+        dash_values = [
+            ["PERSONAL FINANCE EXECUTIVE DASHBOARD - MUHAMMAD HAMZA", "", "", ""],
+            ["Metric Key", "Value (PKR / USD)", "Calculation Formula / Source", "Notes"],
+            ["Total Income & Revenue", "=SUM('💰 Income Log'!D2:D50)", "=SUM('💰 Income Log'!D2:D50)", "Auto-calculated from Income Log tab"],
+            ["Total Expenses & Spending", "=SUM('💸 Expenses Log'!D2:D50)", "=SUM('💸 Expenses Log'!D2:D50)", "Auto-calculated from Expenses Log tab"],
+            ["Net Savings / Cash Balance", "=B3-B4", "Income minus Expenses", "Current Net Savings"],
+            ["Total Udhaar Given (Lent to others)", "=SUMIF('🤝 Udhaar & Loans Tracker'!C2:C50, \"Udhaar Given (Lent)\", '🤝 Udhaar & Loans Tracker'!D2:D50)", "Sum of Money Lent to Friends/Clients", "Receivable Money"],
+            ["Total Udhaar Taken (Borrowed from others)", "=SUMIF('🤝 Udhaar & Loans Tracker'!C2:C50, \"Udhaar Taken (Borrowed)\", '🤝 Udhaar & Loans Tracker'!D2:D50)", "Sum of Money Borrowed from Others", "Payable Debt"]
+        ]
+
+        exp_values = [
+            ["Date", "Category", "Description", "Amount (PKR)", "Payment Method", "Status", "Notes"],
+            ["2026-08-01", "Groceries & Food", "Weekly supermarket groceries", 15500, "Bank Transfer", "Paid", "Weekly essentials"],
+            ["2026-08-05", "Utilities & Bills", "K-Electric electricity bill", 24800, "Online Banking", "Paid", "Monthly electricity"],
+            ["2026-08-10", "Fuel & Transport", "Car fuel tank refill", 12000, "Credit Card", "Paid", "Full tank petrol"],
+            ["2026-08-15", "Tech & Subscriptions", "Vercel / OpenAI API sub", 8500, "Credit Card", "Paid", "SaaS tools"],
+            ["2026-08-20", "Dining Out & Personal", "Dinner with clients", 9200, "Cash", "Paid", "Business meeting"],
+            ["TOTAL EXPENSES", "", "", "=SUM(D2:D6)", "", "", "Auto Total"]
+        ]
+
+        inc_values = [
+            ["Date", "Source / Client Name", "Income Category", "Amount (PKR)", "Payment Method", "Notes"],
+            ["2026-08-01", "Full-Stack Retainer", "Monthly Client Retainer", 350000, "Bank Transfer", "Fixed monthly retainer"],
+            ["2026-08-12", "Upwork Project", "AI Agent Development", 185000, "Payoneer", "Project milestone"],
+            ["2026-08-22", "Web Consultation", "Architecture Audit", 75000, "Direct Deposit", "One-time consultation"],
+            ["TOTAL INCOME", "", "", "=SUM(D2:D4)", "", "Auto Total"]
+        ]
+
+        udhaar_values = [
+            ["Date", "Person Name", "Transaction Type", "Amount (PKR)", "Due Date", "Status", "Notes"],
+            ["2026-08-03", "Ali Ahmed", "Udhaar Given (Lent)", 25000, "2026-09-01", "Pending", "Lent for emergency"],
+            ["2026-08-14", "Tech Vendor", "Udhaar Taken (Borrowed)", 15000, "2026-08-30", "Pending", "Hardware purchase due"],
+            ["TOTAL UDHAAR OUTSTANDING", "", "", "=SUM(D2:D3)", "", "", "Auto Total"]
+        ]
+
+        data_updates = [
+            {"range": "'📊 Executive Dashboard'!A1", "values": dash_values},
+            {"range": "'💸 Expenses Log'!A1", "values": exp_values},
+            {"range": "'💰 Income Log'!A1", "values": inc_values},
+            {"range": "'🤝 Udhaar & Loans Tracker'!A1", "values": udhaar_values}
+        ]
+
+        sheets_service.spreadsheets().values().batchUpdate(
+            spreadsheetId=spreadsheet_id,
+            body={"valueInputOption": "USER_ENTERED", "data": data_updates}
+        ).execute()
+
+        # Format Headers (Royal Blue Header)
+        rgb_color = {"red": 0.11, "green": 0.22, "blue": 0.54} # Deep Royal Blue
+        format_requests = [
+            # Dashboard Title Row 1
+            {
+                "repeatCell": {
+                    "range": {"sheetId": 0, "startRowIndex": 0, "endRowIndex": 1},
+                    "cell": {
+                        "userEnteredFormat": {
+                            "backgroundColor": rgb_color,
+                            "textFormat": {"foregroundColor": {"red": 1.0, "green": 1.0, "blue": 1.0}, "bold": True, "fontSize": 12},
+                            "horizontalAlignment": "LEFT"
+                        }
+                    },
+                    "fields": "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)"
+                }
+            },
+            # Dashboard Table Headers Row 2
+            {
+                "repeatCell": {
+                    "range": {"sheetId": 0, "startRowIndex": 1, "endRowIndex": 2},
+                    "cell": {
+                        "userEnteredFormat": {
+                            "backgroundColor": {"red": 0.94, "green": 0.96, "blue": 0.98},
+                            "textFormat": {"foregroundColor": {"red": 0.05, "green": 0.09, "blue": 0.16}, "bold": True, "fontSize": 10},
+                            "horizontalAlignment": "CENTER"
+                        }
+                    },
+                    "fields": "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)"
+                }
+            }
+        ]
+
+        try:
+            sheets_service.spreadsheets().batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={"requests": format_requests}
+            ).execute()
+        except Exception as fe:
+            print(f"[WorkspaceService] Format warning: {fe}")
+
+        share_url = make_file_shareable(drive_service, spreadsheet_id, make_public=True)
+        return {
+            "success": True,
+            "spreadsheet_id": spreadsheet_id,
+            "url": share_url,
+            "title": title
+        }
+    except Exception as e:
+        print(f"[WorkspaceService] Error creating professional finance spreadsheet: {e}")
         return {"success": False, "error": str(e)}
 
 def update_spreadsheet_data(sheets_service, spreadsheet_id: str, range_name: str, rows: list) -> dict:

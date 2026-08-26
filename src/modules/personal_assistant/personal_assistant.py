@@ -508,14 +508,22 @@ Do not wrap in markdown code blocks, just return raw document text.
 
     def create_google_sheet(self, title: str, instructions: str) -> dict:
         """
-        Uses Gemini to generate structured tabular data (headers + rows),
-        creates a styled Google Sheet with colored headers, makes it shareable,
-        and returns the spreadsheet URL.
+        Uses Gemini to generate structured tabular data or multi-tab Executive Financial OS sheet,
+        creates styled Google Sheet with public edit permissions, and returns the spreadsheet URL.
         """
         if not self.sheets_service or not self.drive_service:
             self.initialize_services()
 
         print(f"[PersonalAssistant] Generating Google Sheet: '{title}'...")
+        
+        # 1. Check if user request is for Personal Finance / Expense / Budget OS
+        combined_text = f"{title} {instructions}".lower()
+        if any(kw in combined_text for kw in ["finance", "budget", "expense", "income", "udhaar", "loan", "tracker", "hisab"]):
+            print("[PersonalAssistant] Detected Financial OS Request -> Creating Multi-Tab Professional Finance Sheet...")
+            from src.services.workspace_service import create_professional_finance_spreadsheet
+            return create_professional_finance_spreadsheet(self.sheets_service, self.drive_service, title=title or "Personal Finance Tracker - Muhammad Hamza")
+
+        # 2. General Tabular Sheet Generation
         prompt = f"""
 You are an executive data assistant creating a structured spreadsheet table for Muhammad Hamza.
 

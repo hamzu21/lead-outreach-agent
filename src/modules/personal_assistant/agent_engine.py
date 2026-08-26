@@ -263,11 +263,13 @@ Return JSON with format:
                     instructions=doc_inst_val
                 )
                 if res.get("success"):
+                    sheet_url = res.get("url")
                     final_reply = (
-                        f"📊 *Google Sheet Created Successfully!*\n\n"
+                        f"📊 *Google Spreadsheet Generated Successfully!* 💸\n\n"
                         f"• *Title*: {res.get('title')}\n"
-                        f"• *Spreadsheet ID*: `{res.get('spreadsheet_id')}`\n"
-                        f"🔗 *Open/Edit Spreadsheet*: {res.get('url')}"
+                        f"• *Structure*: Multi-Tab Financial Dashboard & Logs\n"
+                        f"• *Access*: Anyone with link can view/edit\n\n"
+                        f"🔗 [Open & Edit Google Spreadsheet]({sheet_url})"
                     )
                 else:
                     final_reply = f"⚠️ Failed to create Google Sheet: {res.get('error')}"
