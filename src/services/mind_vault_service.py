@@ -11,7 +11,7 @@ def init_mind_vault_db():
     """
     Initializes the SQLite mind_vault table if it does not exist.
     """
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute("""
@@ -57,7 +57,7 @@ Return JSON with format:
         key = "Fact Note"
         val = fact_text
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
     cursor.execute(
         "INSERT INTO mind_vault (chat_id, category, fact_key, fact_value, created_at) VALUES (?, ?, ?, ?, ?)",
@@ -82,7 +82,7 @@ def query_vault(chat_id: str, query_text: str) -> str:
     Retrieves facts from mind_vault and uses Gemini to answer the user's recall question.
     """
     init_mind_vault_db()
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute(

@@ -10,7 +10,7 @@ def init_user_profiles_db():
     """
     Initializes the SQLite user_profiles table if it does not exist.
     """
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute("""
@@ -32,7 +32,7 @@ def get_or_create_user_profile(chat_id: str, name_fallback: str = "Friend") -> d
     Retrieves or initializes a user profile by Telegram chat_id.
     """
     init_user_profiles_db()
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM user_profiles WHERE chat_id = ?", (str(chat_id),))
@@ -70,7 +70,7 @@ def update_user_profile(chat_id: str, name: str = None, relationship: str = None
     Updates profile details or appends notes about a user.
     """
     profile = get_or_create_user_profile(chat_id)
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
 
     updated_name = name or profile["name"]

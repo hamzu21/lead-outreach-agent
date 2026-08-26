@@ -9,7 +9,7 @@ def init_reminders_db():
     """
     Initializes the SQLite reminders table if it does not exist.
     """
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute("""
@@ -31,7 +31,7 @@ def add_reminder(chat_id: str, reminder_text: str, remind_at_str: str) -> dict:
     remind_at_str formatted as "YYYY-MM-DD HH:MM:SS"
     """
     init_reminders_db()
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
     cursor.execute(
         "INSERT INTO reminders (chat_id, reminder_text, remind_at, status) VALUES (?, ?, ?, 'PENDING')",
@@ -55,7 +55,7 @@ def get_due_reminders() -> List[Dict]:
     Fetches all pending reminders where remind_at is past or equal to current PKT time.
     """
     init_reminders_db()
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
@@ -82,7 +82,7 @@ def mark_reminder_sent(reminder_id: int):
     Marks a reminder as SENT so it won't trigger again.
     """
     init_reminders_db()
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     cursor = conn.cursor()
     cursor.execute("UPDATE reminders SET status = 'SENT' WHERE id = ?", (reminder_id,))
     conn.commit()
@@ -94,7 +94,7 @@ def get_pending_reminders(chat_id: str) -> List[Dict]:
     Lists active pending reminders for a specific chat_id.
     """
     init_reminders_db()
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute(
