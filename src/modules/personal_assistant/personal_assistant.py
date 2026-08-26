@@ -567,6 +567,15 @@ Return strict JSON:
             theme_color=theme
         )
 
+    def clear_and_update_sheet(self, sheet_identifier: str, starting_balance: float = None) -> dict:
+        """
+        Finds target sheet by title keyword or ID, clears mock data rows, and sets starting balance if provided.
+        """
+        if not self.sheets_service or not self.drive_service:
+            self.initialize_services()
+        from src.services.workspace_service import clear_and_update_finance_sheet
+        return clear_and_update_finance_sheet(self.sheets_service, self.drive_service, sheet_identifier, starting_balance=starting_balance)
+
     def trash_workspace_file(self, file_identifier: str) -> dict:
         """
         Moves a Google Doc or Google Sheet file to Drive Trash by ID or title keyword.

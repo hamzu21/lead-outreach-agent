@@ -417,3 +417,132 @@ def list_workspace_files(drive_service, file_type: str = "all") -> dict:
     except Exception as e:
         print(f"[WorkspaceService] Error listing Drive files: {e}")
         return {"success": False, "error": str(e)}
+
+def find_drive_file_by_name(drive_service, keyword: str, file_type: str = "spreadsheet") -> dict:
+    """
+    Searches user's Google Drive Cloud for a spreadsheet or document matching keyword in title.
+    Returns dict with file_id, file_name, url.
+    """
+    if not drive_service or not keyword:
+        return {}
+
+    try:
+        clean_kw = keyword.replace("'", "\\'").strip()
+        mime = "application/vnd.google-apps.spreadsheet" if "sheet" in file_type.lower() else "application/vnd.google-apps.document"
+        query = f"name contains '{clean_kw}' and trashed = false and mimeType = '{mime}'"
+        
+        res = drive_service.files().list(
+            q=query,
+            pageSize=5,
+            fields="files(id, name, mimeType, webViewLink, modifiedTime)"
+        ).execute()
+
+        files = res.get("files", [])
+        if not files:
+            query_any = f"name contains '{clean_kw}' and trashed = false"
+            res_any = drive_service.files().list(
+                q=query_any,
+                pageSize=5,
+                fields="files(id, name, mimeType, webViewLink, modifiedTime)"
+            ).execute()
+            files = res_any.get("files", [])
+
+        if files:
+            best_file = files[0]
+            print(f"[WorkspaceService] Found matching Drive file by name '{keyword}': '{best_file.get('name')}' (ID: {best_file.get('id')})")
+            return {
+                "file_id": best_file.get("id"),
+                "file_name": best_file.get("name"),
+                "url": best_file.get("webViewLink")
+            }
+    except Exception as e:
+        print(f"[WorkspaceService] Error finding Drive file by name '{keyword}': {e}")
+    return {}
+
+def clear_and_update_finance_sheet(sheets_service, drive_service, file_identifier: str, starting_balance: float = None) -> dict:
+    """
+    Finds a Google Sheet by title keyword or ID, clears all mock data rows from Expenses, Income, and Udhaar tabs,
+    updates starting bank balance if provided, and returns the updated sheet link.
+    """
+    if not sheets_service or not drive_service:
+        return {"success": False, "error": "Google Sheets service unavailable"}
+
+    try:
+        # Find file_id
+        target_id = file_identifier.strip()
+        target_name = file_identifier
+
+        if " " in target_id or len(target_id) < 20 or "/" in target_id:
+            found = find_drive_file_by_name(drive_service, file_identifier, file_type="spreadsheet")
+            if not found:
+                # If no matching sheet by keyword, pick the most recently modified spreadsheet
+                res_recent = drive_service.files().list(
+                    q="mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false",
+                    orderBy="modifiedTime desc",
+                    pageSize=1,
+                    fields="files(id, name, webViewLink)"
+                ).execute()
+                r_files = res_recent.get("files", [])
+                if r_files:
+                    target_id = r_files[0]["id"]
+                    target_name = r_files[0]["name"]
+                else:
+                    return {"success": False, "error": f"No active Google Sheet found matching '{file_identifier}'"}
+            else:
+                target_id = found["file_id"]
+                target_name = found["file_name"]
+
+        # Get Sheet Metadata Tabs
+        meta = sheets_service.spreadsheets().get(spreadsheetId=target_id).execute()
+        sheet_tabs = [s['properties']['title'] for s in meta.get('sheets', [])]
+        try:
+            print(f"[WorkspaceService] Clearing mock data from Google Sheet '{target_name}' (ID: {target_id}).")
+        except Exception:
+            pass
+
+        # Clear data rows from Expenses Log, Income Log, Udhaar Tracker
+        for tab in sheet_tabs:
+            if "dashboard" in tab.lower() or "summary" in tab.lower():
+                continue
+            clear_range = f"'{tab}'!A2:Z100"
+            try:
+                sheets_service.spreadsheets().values().clear(
+                    spreadsheetId=target_id,
+                    range=clear_range,
+                    body={}
+                ).execute()
+                print(f"-> Cleared data rows from tab '{tab.encode('ascii', errors='ignore').decode()}'")
+            except Exception as ce:
+                print(f"Warning clearing tab: {ce}")
+
+        # Update Starting Balance on Executive Dashboard / Summary if tab exists
+        dash_tab = None
+        for tab in sheet_tabs:
+            if "dashboard" in tab.lower() or "summary" in tab.lower() or "setup" in tab.lower():
+                dash_tab = tab
+                break
+
+        if dash_tab and starting_balance is not None:
+            balance_row = [["Starting Bank Balance / Cash Reserve", starting_balance, "Initial Starting Balance", "Configured by user"]]
+            try:
+                sheets_service.spreadsheets().values().update(
+                    spreadsheetId=target_id,
+                    range=f"'{dash_tab}'!A3:D3",
+                    valueInputOption="USER_ENTERED",
+                    body={"values": balance_row}
+                ).execute()
+                print(f"-> Updated starting bank balance to {starting_balance}")
+            except Exception as be:
+                print(f"Warning updating balance: {be}")
+
+        share_url = make_file_shareable(drive_service, target_id, make_public=True)
+        return {
+            "success": True,
+            "spreadsheet_id": target_id,
+            "title": target_name,
+            "starting_balance": starting_balance,
+            "url": share_url
+        }
+    except Exception as e:
+        print(f"[WorkspaceService] Error clearing and updating finance sheet: {str(e).encode('ascii', errors='ignore').decode()}")
+        return {"success": False, "error": str(e)}

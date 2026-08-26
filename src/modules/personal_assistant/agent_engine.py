@@ -47,6 +47,7 @@ If the user's message indicates an explicit intent to execute one of the followi
 17. LIST_REMINDERS: User asks to view, check, or list active pending reminders (e.g. "show my reminders", "mere kon kon se reminders scheduled hain").
 18. SAVE_MIND_VAULT: User asks to remember, save, store, or record a personal note, password, vehicle maintenance, warranty, or fact in their second brain / mind vault (e.g. "gari ka oil 45000km par change karwaya tha", "wifi password XYZ hai", "laptop serial number ABC-123 remember rakho").
 19. CREATE_SLIDES: User asks to create, generate, or make Google Slides, lecture slides, presentation, PPTX, or slide deck for students/classes (e.g. "make lecture slides for React Hooks", "generate Google Slides from this doc", "is text/pdf se slides bana do", "create presentation on Machine Learning").
+20. CLEAR_SHEET_DATA: User asks to clear, reset, or remove mock/sample data rows from an existing Google Sheet, or update starting bank balance (e.g. "is sheet mein jo tumne mock data daala woh saara khtm kro", "tmne poorana data remove ni kia", "purana data delete kardo", "bank balance 14100 daalo", "clear sample rows from spreadsheet").
 """
 
 class ConversationalAgent:
@@ -94,15 +95,16 @@ Current Local Time (Pakistan Standard Time PKT, UTC+5 / Asia/Karachi): {current_
 Analyze the user's message and determine if an action tool is required.
 Return JSON with format:
 {{
-  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "REPLY_EMAIL" | "JOB_AGENT" | "CREATE_DOC" | "CREATE_SHEET" | "MANAGE_WORKSPACE_FILE" | "LIST_WORKSPACE_FILES" | "CREATE_INVOICE" | "AUDIT_WEBSITE" | "TECH_RADAR" | "SET_REMINDER" | "LIST_REMINDERS" | "CREATE_SLIDES" | "GENERAL_CONVERSATION",
+  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "REPLY_EMAIL" | "JOB_AGENT" | "CREATE_DOC" | "CREATE_SHEET" | "MANAGE_WORKSPACE_FILE" | "LIST_WORKSPACE_FILES" | "CREATE_INVOICE" | "AUDIT_WEBSITE" | "TECH_RADAR" | "SET_REMINDER" | "LIST_REMINDERS" | "CREATE_SLIDES" | "CLEAR_SHEET_DATA" | "GENERAL_CONVERSATION",
   "expense_details": "Extracted expense text if intent is EXPENSE_LOG, else empty string",
   "draft_id": "Extracted draft ID if intent is SEND_DRAFT, else empty string",
   "to_email": "Extracted recipient email address, brand name, or sender keyword (e.g. 'duolingo', 'zeusmr777@gmail.com', 'linkedin') if intent is SEND_EMAIL or REPLY_EMAIL, else empty string",
   "email_subject": "Professional email subject line if intent is SEND_EMAIL or REPLY_EMAIL, else empty string",
   "email_body": "Well-formatted professional email body text if intent is SEND_EMAIL, else empty string",
   "reply_instructions": "Extracted user reply instructions if intent is REPLY_EMAIL, else empty string",
-  "doc_title": "Extracted document or spreadsheet title if intent is CREATE_DOC, CREATE_SHEET, or MANAGE_WORKSPACE_FILE, else empty string",
+  "doc_title": "Extracted document or spreadsheet title if intent is CREATE_DOC, CREATE_SHEET, MANAGE_WORKSPACE_FILE, or CLEAR_SHEET_DATA, else empty string",
   "doc_instructions": "Extracted instructions or content details if intent is CREATE_DOC or CREATE_SHEET, else empty string",
+  "starting_balance": "Extracted numerical starting bank balance if user specifies starting balance (e.g. 14100), else empty string",
   "client_name": "Extracted client name if intent is CREATE_INVOICE, else empty string",
   "invoice_amount": "Extracted numerical amount if intent is CREATE_INVOICE, else empty string",
   "invoice_currency": "Extracted currency code like USD or PKR if intent is CREATE_INVOICE, default USD",
@@ -142,7 +144,7 @@ Return JSON with format:
             invoice_amt_val = res_data.get("invoice_amount", "500").strip()
             invoice_curr_val = res_data.get("invoice_currency", "USD").strip()
             invoice_desc_val = res_data.get("invoice_desc", "Software Development Services").strip()
-            send_invoice_email_val = bool(res_data.get("send_invoice_email", False))
+            starting_balance_val = res_data.get("starting_balance", "").strip()
             audit_url_val = res_data.get("audit_url", "").strip()
             reminder_text_val = res_data.get("reminder_text", "").strip()
             remind_at_val = res_data.get("remind_at_datetime", "").strip()
@@ -424,8 +426,29 @@ Return JSON with format:
                         f"• *Theme*: Modern High-Contrast Light Snow (16:9 Widescreen)\n\n"
                         f"🔗 [Open & Edit Google Slides Presentation]({slides_url})"
                     )
+            elif intent == "CLEAR_SHEET_DATA":
+                target_kw = doc_title_val or user_text
+                s_bal = None
+                if starting_balance_val:
+                    try:
+                        s_bal = float(starting_balance_val.replace(",", "").strip())
+                    except Exception:
+                        s_bal = None
+
+                res = self.pa_service.clear_and_update_sheet(target_kw, starting_balance=s_bal)
+                if res.get("success"):
+                    sheet_url = res.get("url")
+                    bal_msg = f"• *Starting Bank Balance Configured*: PKR {res.get('starting_balance'):,}\n" if res.get("starting_balance") else ""
+                    final_reply = (
+                        f"🧹 *Google Sheet Data Cleared & Updated!* 💸\n\n"
+                        f"• *Target Sheet*: `{res.get('title')}`\n"
+                        f"• *Action*: All mock/sample rows cleared from Expenses & Income tabs\n"
+                        f"{bal_msg}"
+                        f"• *Access*: Clean sheet ready for your real entries\n\n"
+                        f"🔗 [Open & Edit Clean Google Sheet]({sheet_url})"
+                    )
                 else:
-                    final_reply = f"⚠️ Could not generate Google Slides presentation: {res.get('error')}"
+                    final_reply = f"⚠️ Could not clear sheet data: {res.get('error')}"
 
             # 3. Save User Message & Zeyra Response to SQLite Memory
             save_message(chat_id, "user", user_text)
