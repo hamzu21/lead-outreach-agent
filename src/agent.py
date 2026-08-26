@@ -19,7 +19,7 @@ class LeadOutreachAgent:
 
     def initialize_services(self):
         print("Initializing Google API services...")
-        self.sheets_service, self.gmail_service, _, _ = get_google_services()
+        self.sheets_service, self.gmail_service, *_ = get_google_services()
         ensure_google_sheet_header(self.sheets_service)
 
     def run(self):
