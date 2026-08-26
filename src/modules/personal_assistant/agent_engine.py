@@ -203,20 +203,24 @@ Return JSON with format:
                 parsed_exp_obj = res_data.get("parsed_expense")
                 target_kw = doc_title_val.strip() if doc_title_val and doc_title_val != "Untitled Workspace File" else None
                 exp_data = self.pa_service.process_expense(combined_exp_text, parsed_data=parsed_exp_obj, target_spreadsheet_id=target_kw)
-                target_sheet_id = exp_data.get("target_spreadsheet_id") or exp_data.get("spreadsheet_id")
-                target_tab = exp_data.get("target_tab", "Expenses")
-                target_url = f"https://docs.google.com/spreadsheets/d/{target_sheet_id}/edit?usp=sharing" if target_sheet_id else ""
-                link_str = f"\n\n🔗 [Open & View Target Google Sheet]({target_url})" if target_url else ""
-                final_reply = (
-                    f"🧾 *Expense Logged Successfully!*\n\n"
-                    f"• *Vendor/Item*: {exp_data.get('vendor')}\n"
-                    f"• *Amount*: {exp_data.get('currency')} {exp_data.get('amount')}\n"
-                    f"• *Category*: {exp_data.get('category')}\n"
-                    f"• *Date*: {exp_data.get('date')}\n"
-                    f"• *Logged To Tab*: `{target_tab}`\n"
-                    f"• *Details*: {exp_data.get('description')}"
-                    f"{link_str}"
-                )
+                
+                if exp_data.get("logged_to_sheet", True):
+                    target_sheet_id = exp_data.get("target_spreadsheet_id") or exp_data.get("spreadsheet_id")
+                    target_tab = exp_data.get("target_tab", "Expenses")
+                    target_url = f"https://docs.google.com/spreadsheets/d/{target_sheet_id}/edit?usp=sharing" if target_sheet_id else ""
+                    link_str = f"\n\n🔗 [Open & View Target Google Sheet]({target_url})" if target_url else ""
+                    final_reply = (
+                        f"🧾 *Expense Logged Successfully!*\n\n"
+                        f"• *Vendor/Item*: {exp_data.get('vendor')}\n"
+                        f"• *Amount*: {exp_data.get('currency')} {exp_data.get('amount')}\n"
+                        f"• *Category*: {exp_data.get('category')}\n"
+                        f"• *Date*: {exp_data.get('date')}\n"
+                        f"• *Logged To Tab*: `{target_tab}`\n"
+                        f"• *Details*: {exp_data.get('description')}"
+                        f"{link_str}"
+                    )
+                else:
+                    final_reply = f"⚠️ Could not log entry to Google Sheet: {exp_data.get('error', 'Google API failure')}. Please retry."
 
             elif intent == "INBOX_DIGEST":
                 digest_content = self.pa_service.get_inbox_digest()

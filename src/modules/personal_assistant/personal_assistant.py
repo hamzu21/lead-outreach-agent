@@ -41,9 +41,10 @@ class PersonalAssistantService:
         self.docs_service = None
         self.drive_service = None
 
-    def initialize_services(self):
+    def initialize_services(self, force: bool = False):
         try:
-            self.sheets_service, self.gmail_service, self.docs_service, self.drive_service = get_google_services()
+            if force or not self.sheets_service:
+                self.sheets_service, self.gmail_service, self.docs_service, self.drive_service = get_google_services()
         except Exception as e:
             print(f"[PersonalAssistant] Warning initializing Google services: {e}")
 
@@ -205,16 +206,21 @@ Return strict JSON:
 
         # Log to Google Sheet & Local Excel
         target_info = self._log_expense_data(data, target_spreadsheet_id=target_spreadsheet_id)
-        if target_info:
+        if target_info and target_info.get("success"):
+            data["logged_to_sheet"] = True
             data["target_spreadsheet_id"] = target_info.get("spreadsheet_id")
             data["target_tab"] = target_info.get("tab")
             data["updated_range"] = target_info.get("range")
+        else:
+            data["logged_to_sheet"] = False
+            data["error"] = target_info.get("error") if target_info else "Failed to append row to Google Sheet."
         return data
 
     def _log_expense_data(self, data: dict, target_spreadsheet_id: str = None):
         """
-        Logs extracted expense row to Google Sheet and local expense_log.xlsx
+        Logs extracted expense row to Google Sheet and local expense_log.xlsx with auto-retry on API failure.
         """
+        import time
         date_val = data.get("date", "")
         vendor_val = data.get("vendor", "Unknown")
         amount_val = data.get("amount", 0.0)
@@ -229,73 +235,80 @@ Return strict JSON:
             self.initialize_services()
 
         target_id = target_spreadsheet_id
+        last_error = None
 
-        if self.sheets_service and self.drive_service:
-            try:
-                # If target_spreadsheet_id is specified as title keyword (not ID)
-                if target_id and not ("/" in target_id or len(target_id) > 25):
-                    from src.services.workspace_service import find_drive_file_by_name
-                    found = find_drive_file_by_name(self.drive_service, target_id, file_type="spreadsheet")
-                    if found.get("file_id"):
-                        target_id = found.get("file_id")
-
-                # Search Google Drive for active Finance / Monthly Expenses sheet if no target specified or resolution failed
-                if not target_id or len(target_id) < 25:
-                    from src.services.workspace_service import find_drive_file_by_name
-                    for kw in ["Professional Monthly Expenses Management", "Expenses", "Finance", "Monthly Expenses", "Budget", "Personal Finance Tracker"]:
-                        found = find_drive_file_by_name(self.drive_service, kw, file_type="spreadsheet")
+        for attempt in range(2):
+            if self.sheets_service and self.drive_service:
+                try:
+                    # If target_spreadsheet_id is specified as title keyword (not ID)
+                    if target_id and not ("/" in target_id or len(target_id) > 25):
+                        from src.services.workspace_service import find_drive_file_by_name
+                        found = find_drive_file_by_name(self.drive_service, target_id, file_type="spreadsheet")
                         if found.get("file_id"):
                             target_id = found.get("file_id")
-                            print(f"[PersonalAssistant] Auto-matched Finance Sheet on Drive: '{found.get('file_name')}' (ID: {target_id})")
-                            break
 
-                if not target_id:
-                    target_id = EXPENSE_SPREADSHEET_ID or SPREADSHEET_ID
+                    # Search Google Drive for active Finance / Monthly Expenses sheet if no target specified or resolution failed
+                    if not target_id or len(target_id) < 25:
+                        from src.services.workspace_service import find_drive_file_by_name
+                        for kw in ["Professional Monthly Expenses Management", "Expenses", "Finance", "Monthly Expenses", "Budget", "Personal Finance Tracker"]:
+                            found = find_drive_file_by_name(self.drive_service, kw, file_type="spreadsheet")
+                            if found.get("file_id"):
+                                target_id = found.get("file_id")
+                                print(f"[PersonalAssistant] Auto-matched Finance Sheet on Drive: '{found.get('file_name')}' (ID: {target_id})")
+                                break
 
-                # Get Sheet Metadata Tabs
-                meta = self.sheets_service.spreadsheets().get(spreadsheetId=target_id).execute()
-                sheet_tabs = [s['properties']['title'] for s in meta.get('sheets', [])]
-                
-                # Match Tab Name: Udhaar vs Expenses vs Income
-                matched_tab = None
-                combined_desc = f"{category_val} {desc_val} {vendor_val}".lower()
-                is_udhaar = any(kw in combined_desc for kw in ["udhaar", "debt", "borrow", "lent", "receivable", "payable", "loan"])
-                
-                if is_udhaar:
-                    for tab in sheet_tabs:
-                        if any(kw in tab.lower() for kw in ["udhaar", "loan", "debt"]):
-                            matched_tab = tab
-                            break
+                    if not target_id:
+                        target_id = EXPENSE_SPREADSHEET_ID or SPREADSHEET_ID
 
-                if not matched_tab:
-                    for tab in sheet_tabs:
-                        if "expense" in tab.lower():
-                            matched_tab = tab
-                            break
+                    # Get Sheet Metadata Tabs
+                    meta = self.sheets_service.spreadsheets().get(spreadsheetId=target_id).execute()
+                    sheet_tabs = [s['properties']['title'] for s in meta.get('sheets', [])]
+                    
+                    # Match Tab Name: Udhaar vs Expenses vs Income
+                    matched_tab = None
+                    combined_desc = f"{category_val} {desc_val} {vendor_val}".lower()
+                    is_udhaar = any(kw in combined_desc for kw in ["udhaar", "debt", "borrow", "lent", "receivable", "payable", "loan"])
+                    
+                    if is_udhaar:
+                        for tab in sheet_tabs:
+                            if any(kw in tab.lower() for kw in ["udhaar", "loan", "debt"]):
+                                matched_tab = tab
+                                break
 
-                if not matched_tab and sheet_tabs:
-                    matched_tab = sheet_tabs[0]
+                    if not matched_tab:
+                        for tab in sheet_tabs:
+                            if "expense" in tab.lower():
+                                matched_tab = tab
+                                break
 
-                target_tab = matched_tab or EXPENSE_SHEET_NAME
-                target_range_str = f"'{target_tab}'!A:F"
+                    if not matched_tab and sheet_tabs:
+                        matched_tab = sheet_tabs[0]
 
-                body = {"values": [row]}
-                res_app = self.sheets_service.spreadsheets().values().append(
-                    spreadsheetId=target_id,
-                    range=target_range_str,
-                    valueInputOption="USER_ENTERED",
-                    insertDataOption="INSERT_ROWS",
-                    body=body
-                ).execute()
-                print(f"-> Appended expense row to Google Sheet '{target_id}' (Tab: '{target_tab.encode('ascii', errors='ignore').decode()}').")
-                return {
-                    "target_spreadsheet_id": target_id,
-                    "spreadsheet_id": target_id,
-                    "tab": target_tab,
-                    "range": res_app.get("updates", {}).get("updatedRange")
-                }
-            except Exception as e:
-                print(f"Warning: Failed to update expense in Google Sheet: {e}")
+                    target_tab = matched_tab or EXPENSE_SHEET_NAME
+                    target_range_str = f"'{target_tab}'!A:F"
+
+                    body = {"values": [row]}
+                    res_app = self.sheets_service.spreadsheets().values().append(
+                        spreadsheetId=target_id,
+                        range=target_range_str,
+                        valueInputOption="USER_ENTERED",
+                        insertDataOption="INSERT_ROWS",
+                        body=body
+                    ).execute()
+                    print(f"-> Appended expense row to Google Sheet '{target_id}' (Tab: '{target_tab.encode('ascii', errors='ignore').decode()}').")
+                    return {
+                        "success": True,
+                        "target_spreadsheet_id": target_id,
+                        "spreadsheet_id": target_id,
+                        "tab": target_tab,
+                        "range": res_app.get("updates", {}).get("updatedRange")
+                    }
+                except Exception as e:
+                    last_error = str(e)
+                    print(f"[PersonalAssistant] Notice: Attempt {attempt + 1} Google Sheet append failed: {e}")
+                    if attempt == 0:
+                        self.initialize_services(force=True)
+                        time.sleep(0.5)
 
         # 2. Update Local Excel
         try:
