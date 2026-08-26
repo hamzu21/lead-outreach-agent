@@ -20,10 +20,9 @@ def get_ai_client():
     return _client
 
 FALLBACK_MODELS = [
-    AI_MODEL_NAME,
     "gemini-2.5-flash",
     "gemini-1.5-flash",
-    "gemini-3.5-flash",
+    AI_MODEL_NAME,
     "gemini-3.5-flash-lite",
     "gemini-flash-latest"
 ]
