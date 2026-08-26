@@ -9,23 +9,26 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.9"
 }
 
-def extract_clean_search_query(user_text: str) -> str:
+def extract_clean_search_query(user_text: str, history_context: str = "") -> str:
     """
     Uses Gemini AI to extract an optimized, clean English search query
-    from conversational Roman Urdu or raw user input.
+    from conversational input, utilizing conversation history to resolve pronouns/subjects.
     """
     prompt = f"""
-Convert this user's conversational message into a clean, concise, keyword-focused Google/web search query:
-User Message: "{user_text}"
+Convert this user's conversational message into a clean, concise, keyword-focused Google/web search query.
+
+{history_context if history_context else 'No previous conversation history.'}
+
+User's Current Message: "{user_text}"
 
 Rules:
 - Return ONLY the clean search query string (no explanation, no punctuation, no quotes).
-- Translate Roman Urdu or conversational phrases to effective search keywords.
+- Use previous conversation history if the current message refers to a previous subject (e.g., if history was about gold rates and user says "mjhe exact rate btao", output "gold price per tola today Pakistan PKR").
 - Examples:
   "aaj gold ka lya rate hai?" -> "gold price per tola today Pakistan"
+  "mjhe exact rate btao" (history about gold) -> "gold price per tola today Pakistan PKR"
   "live new test kro" -> "latest breaking news Pakistan today"
   "mere baare mein search krke dekho mr hamza dev" -> "mr hamza dev developer"
-  "search web for Next.js 15 features" -> "Next.js 15 features release"
 """
     try:
         clean_q = generate_ai_content(prompt).strip().strip('"').strip("'")
@@ -95,9 +98,9 @@ def fetch_webpage_text(url: str, max_chars: int = 3000) -> str:
     except Exception as e:
         return f"Error fetching webpage: {e}"
 
-def perform_realtime_web_browsing(user_text: str) -> str:
+def perform_realtime_web_browsing(user_text: str, history_context: str = "") -> str:
     """
-    Extracts search query, queries DuckDuckGo & Google News, and generates a warm, synthesized answer.
+    Extracts search query (using history for context), queries DuckDuckGo & Google News, and generates a warm, synthesized answer.
     """
     is_url = user_text.strip().startswith("http://") or user_text.strip().startswith("https://")
     
@@ -115,9 +118,9 @@ Provide a clean, warm, executive summary of what this webpage contains. Cite key
 """
         return generate_ai_content(prompt)
 
-    # 1. Extract clean Google search query from user text
-    clean_query = extract_clean_search_query(user_text)
-    print(f"[WebSearch] Original User Input: '{user_text}' -> Extracted Query: '{clean_query}'")
+    # 1. Extract clean Google search query from user text using history context
+    clean_query = extract_clean_search_query(user_text, history_context)
+    print(f"[WebSearch] Original Input: '{user_text}' -> Extracted Query: '{clean_query}'")
 
     # 2. Perform search via DuckDuckGo Lite & Google News RSS
     results = search_duckduckgo_lite(clean_query, max_results=5)
@@ -130,7 +133,9 @@ Provide a clean, warm, executive summary of what this webpage contains. Cite key
     prompt = f"""
 You are Zeyra, providing direct real-time web search results to Hamza.
 
-User's Original Question: "{user_text}"
+{history_context if history_context else ''}
+
+User's Current Question: "{user_text}"
 Search Keywords Used: "{clean_query}"
 
 Live Search Results:
@@ -140,6 +145,7 @@ STRICT INSTRUCTIONS FOR DIRECT RESPONSE:
 - State the EXACT answer, figures, or live market data IMMEDIATELY in your VERY FIRST sentence!
 - DO NOT output filler chatter (NEVER say "Bilkul Hamza!", "Main check karti hoon", "Let me search right away!", "Chalo check kartay hain!").
 - DO NOT invent fake AI disclaimers or excuses (NEVER say "due to security/privacy reasons", "cannot share exact figures in public chat", "visit customer portal", or "contact support").
+- NEVER say "pehle koi baat nahi hui" or "yeh pehla message hai".
 - Summarize the exact numbers, rates, or news clearly in crisp, direct Roman Urdu/English.
 """
 

@@ -46,13 +46,6 @@ If the user's message indicates an explicit intent to execute one of the followi
 16. SET_REMINDER: User asks to set, schedule, or create a reminder, alarm, or task alert for a specific date or time (e.g. "flaani date ko mjhe yaad dilana", "28 August ko 3 PM par bill pay karne ka reminder lagao", "remind me in 2 hours to call client").
 17. LIST_REMINDERS: User asks to view, check, or list active pending reminders (e.g. "show my reminders", "mere kon kon se reminders scheduled hain").
 18. SAVE_MIND_VAULT: User asks to remember, save, store, or record a personal note, password, vehicle maintenance, warranty, or fact in their second brain / mind vault (e.g. "gari ka oil 45000km par change karwaya tha", "wifi password XYZ hai", "laptop serial number ABC-123 remember rakho").
-19. QUERY_MIND_VAULT: User asks to recall, find, search, or check stored facts from their second brain / mind vault (e.g. "gari ka oil kab change karwaya था", "wifi password kya tha", "laptop serial number kya tha", "mind vault check karo").
-20. FOCUS_OPTIMIZER: User mentions daily energy levels, fatigue, focus, or asks for daily energy schedule optimization (e.g. "aaj mera mood thaka hua hai", "low energy lag rahi hai focus schedule banao", "optimize my focus for today").
-21. TEACHING_STUDIO: User asks to generate lecture notes, assignment questions, slides outline, or solution keys for teaching/classes (e.g. "React Hooks par kal ki class ke liye 5 assignment questions aur answer key doc banao", "teaching package for Web Dev").
-22. BUDGET_DIRECTOR: User asks for financial health report, monthly savings advice, budget summary, or expense analytics (e.g. "mera monthly budget report dikhao", "financial health check", "savings report", "expense vs income breakdown").
-23. INTRODUCE_GUEST: User introduces a new guest, friend, client, or person to Zeyra (e.g. "Zeyra yeh mera dost Ali hai is se milo", "meet my client Sarah", "yeh meray brother Ahmed hain").
-24. WEB_SEARCH: User asks to search the web, google something, check live news, petrol prices, weather, stock market, articles, websites, or real-time internet information (e.g. "search web for latest Next.js 15 features", "google par search karo Pakistan petrol price today", "search web about AI news").
-25. GENERAL_CONVERSATION: User is asking a question, chatting, seeking advice, planning, or teaching guidance.
 """
 
 class ConversationalAgent:
@@ -70,8 +63,8 @@ class ConversationalAgent:
         user_rel = user_profile.get("relationship", "Guest")
         user_notes = user_profile.get("notes", "")
 
-        # 2. Load recent conversation history from SQLite
-        recent_history = get_recent_history(chat_id=chat_id, limit=8)
+        # 2. Load recent conversation history from SQLite (up to 16 messages / 8 turns)
+        recent_history = get_recent_history(chat_id=chat_id, limit=16)
 
         # Current timestamp for relative date calculation by Gemini in Pakistan Standard Time (PKT, UTC+5)
         current_time_str = get_pkt_now_str("%Y-%m-%d %H:%M:%S")
@@ -79,7 +72,7 @@ class ConversationalAgent:
         # Build context prompt
         history_formatted = ""
         if recent_history:
-            history_formatted = "\nConversation History:\n"
+            history_formatted = "\nConversation History (Recent Messages):\n"
             for msg in recent_history:
                 role_label = user_name if msg["role"] == "user" else "Zeyra"
                 history_formatted += f"{role_label}: {msg['content']}\n"
@@ -413,7 +406,7 @@ Return JSON with format:
                 )
 
             elif intent == "WEB_SEARCH":
-                final_reply = self.pa_service.perform_web_search(user_text)
+                final_reply = self.pa_service.perform_web_search(user_text, history_context=history_formatted)
 
             # 3. Save User Message & Zeyra Response to SQLite Memory
             save_message(chat_id, "user", user_text)
