@@ -158,6 +158,27 @@ Return JSON with format:
 
             final_reply = base_response
 
+            # 1.5 Send instant preliminary status update for time-taking tasks to eliminate user waiting perception
+            status_messages = {
+                "WEB_SEARCH": "🔍 *Ji Hamza, main live web search karke info gather kar rahi hoon...* ⏳",
+                "CREATE_SLIDES": "📊 *Ji Hamza, main presentation slides design aur generate kar rahi hoon...* ⏳",
+                "CREATE_SHEET": "📑 *Ji Hamza, main Google Spreadsheet generate kar rahi hoon...* ⏳",
+                "CLEAR_SHEET_DATA": "🧹 *Ji Hamza, main sheet ka data clear aur balance update kar rahi hoon...* ⏳",
+                "AUDIT_WEBSITE": "🔍 *Ji Hamza, main website scan karke audit report compile kar rahi hoon...* ⏳",
+                "CREATE_DOC": "📄 *Ji Hamza, main Google Document generate kar rahi hoon...* ⏳",
+                "TEACHING_STUDIO": "🎓 *Ji Hamza, main teaching package document tayyar kar rahi hoon...* ⏳",
+                "CREATE_INVOICE": "🧾 *Ji Hamza, main client invoice PDF compile kar rahi hoon...* ⏳",
+                "INBOX_DIGEST": "📥 *Ji Hamza, main aap ka Gmail inbox scan kar rahi hoon...* ⏳",
+                "MORNING_BRIEF": "🌅 *Ji Hamza, main aap ki Morning Briefing compile kar rahi hoon...* ⏳"
+            }
+
+            if intent in status_messages and chat_id:
+                try:
+                    from src.services.telegram_service import send_telegram_message
+                    send_telegram_message(status_messages[intent], chat_id=chat_id)
+                except Exception as se:
+                    print(f"[ConversationalAgent] Notice sending preliminary status: {se}")
+
             # 2. Execute Action Tools based on intent
             if intent == "MORNING_BRIEF":
                 brief_content = self.pa_service.get_morning_briefing()
