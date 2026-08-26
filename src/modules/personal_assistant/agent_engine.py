@@ -112,7 +112,7 @@ CRITICAL RULE FOR EMAIL DELETION & CHECKING:
 
 Return JSON with format:
 {{
-  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "REPLY_EMAIL" | "TRASH_EMAIL" | "CHECK_EMAILS" | "JOB_AGENT" | "CREATE_DOC" | "CREATE_SHEET" | "MANAGE_WORKSPACE_FILE" | "LIST_WORKSPACE_FILES" | "CREATE_INVOICE" | "AUDIT_WEBSITE" | "TECH_RADAR" | "SET_REMINDER" | "LIST_REMINDERS" | "CREATE_SLIDES" | "CLEAR_SHEET_DATA" | "GENERAL_CONVERSATION",
+  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "REPLY_EMAIL" | "TRASH_EMAIL" | "CHECK_EMAILS" | "JOB_AGENT" | "ACADEMIC_OUTREACH" | "CREATE_DOC" | "CREATE_SHEET" | "MANAGE_WORKSPACE_FILE" | "LIST_WORKSPACE_FILES" | "CREATE_INVOICE" | "AUDIT_WEBSITE" | "TECH_RADAR" | "SET_REMINDER" | "LIST_REMINDERS" | "CREATE_SLIDES" | "CLEAR_SHEET_DATA" | "GENERAL_CONVERSATION",
   "expense_details": "Extracted expense text if intent is EXPENSE_LOG, else empty string",
   "parsed_expense": {{
     "amount": 500.0,
@@ -192,6 +192,7 @@ Return JSON with format:
 
             # 1.5 Send instant preliminary status update for time-taking tasks to eliminate user waiting perception
             status_messages = {
+                "ACADEMIC_OUTREACH": "🎓 *Ji Hamza, main Academic Professor Outreach campaign start kar rahi hoon (Semantic Scholar paper research + CV attachment)...* ⏳",
                 "CHECK_EMAILS": "🔍 *Ji Hamza, main live Gmail scan karke count verify kar rahi hoon...* ⏳",
                 "TRASH_EMAIL": "🗑️ *Ji Hamza, main email trash/delete kar rahi hoon...* ⏳",
                 "WEB_SEARCH": "🔍 *Ji Hamza, main live web search karke info gather kar rahi hoon...* ⏳",
@@ -452,6 +453,20 @@ Return JSON with format:
 
             elif intent == "JOB_AGENT":
                 final_reply = "🛑 *Job Application Agent is currently disabled* as per your request. If you ever want to re-enable it in the future, just let me know!"
+
+            elif intent == "ACADEMIC_OUTREACH":
+                res = self.pa_service.run_professor_outreach(limit=10)
+                if res.get("success"):
+                    final_reply = (
+                        f"🎓 *Academic Professor Outreach Campaign Completed!* 🏛️\n\n"
+                        f"• *Professors Contacted*: `{res.get('processed_count')}`\n"
+                        f"• *Research Lookup*: Semantic Scholar & OpenAlex APIs\n"
+                        f"• *CV Attached*: `Muhammad_Hamza_CV.pdf`\n"
+                        f"• *Tracker File*: `{res.get('csv_file')}`\n\n"
+                        f"_(All outreach emails have been personalized with recent paper hooks and sent directly via Gmail.)_"
+                    )
+                else:
+                    final_reply = f"⚠️ Could not complete professor outreach: {res.get('error')}"
 
             elif intent == "SET_REMINDER":
                 rem_text = reminder_text_val or user_text

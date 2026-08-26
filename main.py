@@ -8,7 +8,7 @@ from src.modules.personal_assistant import (
     run_expense_tracker_agent,
     run_inbox_zero_agent
 )
-from src.modules.personal_assistant.bot import run_telegram_bot_loop
+from src.modules.academic_outreach import run_academic_outreach_campaign
 
 def main():
     parser = argparse.ArgumentParser(description="Multi-Agent AI Executive Assistant")
@@ -16,8 +16,8 @@ def main():
         "--mode",
         type=str,
         default="outreach",
-        choices=["outreach", "jobs", "morning_brief", "expense_tracker", "inbox_zero", "bot"],
-        help="Agent mode: 'outreach', 'jobs', 'morning_brief', 'expense_tracker', 'inbox_zero', 'bot'"
+        choices=["outreach", "jobs", "academic", "professor", "morning_brief", "expense_tracker", "inbox_zero", "bot"],
+        help="Agent mode: 'outreach', 'jobs', 'academic', 'professor', 'morning_brief', 'expense_tracker', 'inbox_zero', 'bot'"
     )
     parser.add_argument(
         "--limit",
@@ -65,6 +65,16 @@ def main():
             run_inbox_zero_agent(send_telegram=True)
         except Exception as e:
             print(f"\n[ERROR] Inbox Zero Agent failed: {e}", file=sys.stderr)
+            traceback.print_exc()
+            sys.exit(1)
+    elif args.mode in ["academic", "professor"]:
+        limit = args.limit if args.limit is not None else 10
+        print(f"Starting Academic Professor Outreach Agent (Mode: {args.mode}, Limit: {limit})...")
+        try:
+            res = run_academic_outreach_campaign(limit=limit)
+            print(f"[SUCCESS] Academic Outreach Campaign Completed! Processed: {res.get('processed_count')} professors.")
+        except Exception as e:
+            print(f"\n[ERROR] Academic Outreach Agent failed: {e}", file=sys.stderr)
             traceback.print_exc()
             sys.exit(1)
     elif args.mode == "bot":

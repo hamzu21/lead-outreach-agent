@@ -816,6 +816,11 @@ Return strict JSON:
         from src.services.slides_service import create_google_slides_presentation
         return create_google_slides_presentation(input_content_or_filepath)
 
+    def run_professor_outreach(self, limit: int = 10) -> dict:
+        """Triggers Academic Professor Outreach Campaign with Semantic Scholar paper lookup."""
+        from src.modules.academic_outreach import run_academic_outreach_campaign
+        return run_academic_outreach_campaign(limit=limit)
+
 
 def run_morning_brief_agent(send_telegram: bool = True):
     service = PersonalAssistantService()
