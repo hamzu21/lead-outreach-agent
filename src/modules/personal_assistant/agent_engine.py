@@ -46,6 +46,7 @@ If the user's message indicates an explicit intent to execute one of the followi
 16. SET_REMINDER: User asks to set, schedule, or create a reminder, alarm, or task alert for a specific date or time (e.g. "flaani date ko mjhe yaad dilana", "28 August ko 3 PM par bill pay karne ka reminder lagao", "remind me in 2 hours to call client").
 17. LIST_REMINDERS: User asks to view, check, or list active pending reminders (e.g. "show my reminders", "mere kon kon se reminders scheduled hain").
 18. SAVE_MIND_VAULT: User asks to remember, save, store, or record a personal note, password, vehicle maintenance, warranty, or fact in their second brain / mind vault (e.g. "gari ka oil 45000km par change karwaya tha", "wifi password XYZ hai", "laptop serial number ABC-123 remember rakho").
+19. CREATE_SLIDES: User asks to create, generate, or make Google Slides, lecture slides, presentation, PPTX, or slide deck for students/classes (e.g. "make lecture slides for React Hooks", "generate Google Slides from this doc", "is text/pdf se slides bana do", "create presentation on Machine Learning").
 """
 
 class ConversationalAgent:
@@ -93,7 +94,7 @@ Current Local Time (Pakistan Standard Time PKT, UTC+5 / Asia/Karachi): {current_
 Analyze the user's message and determine if an action tool is required.
 Return JSON with format:
 {{
-  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "REPLY_EMAIL" | "JOB_AGENT" | "CREATE_DOC" | "CREATE_SHEET" | "MANAGE_WORKSPACE_FILE" | "LIST_WORKSPACE_FILES" | "CREATE_INVOICE" | "AUDIT_WEBSITE" | "TECH_RADAR" | "SET_REMINDER" | "LIST_REMINDERS" | "GENERAL_CONVERSATION",
+  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "REPLY_EMAIL" | "JOB_AGENT" | "CREATE_DOC" | "CREATE_SHEET" | "MANAGE_WORKSPACE_FILE" | "LIST_WORKSPACE_FILES" | "CREATE_INVOICE" | "AUDIT_WEBSITE" | "TECH_RADAR" | "SET_REMINDER" | "LIST_REMINDERS" | "CREATE_SLIDES" | "GENERAL_CONVERSATION",
   "expense_details": "Extracted expense text if intent is EXPENSE_LOG, else empty string",
   "draft_id": "Extracted draft ID if intent is SEND_DRAFT, else empty string",
   "to_email": "Extracted recipient email address, brand name, or sender keyword (e.g. 'duolingo', 'zeusmr777@gmail.com', 'linkedin') if intent is SEND_EMAIL or REPLY_EMAIL, else empty string",
@@ -407,6 +408,21 @@ Return JSON with format:
 
             elif intent == "WEB_SEARCH":
                 final_reply = self.pa_service.perform_web_search(user_text, history_context=history_formatted)
+
+            elif intent == "CREATE_SLIDES":
+                topic = doc_inst_val or user_text
+                res = self.pa_service.create_lecture_slides(topic)
+                if res.get("success"):
+                    final_reply = (
+                        f"📊 *Google Slides Presentation Generated Successfully!* 🎓\n\n"
+                        f"• *Title*: {res.get('title')}\n"
+                        f"• *Slide Count*: {res.get('slides_count')} Widescreen Slides\n"
+                        f"• *Instructor*: {res.get('outline', {}).get('instructor', 'Muhammad Hamza')}\n"
+                        f"• *Theme*: Executive Dark Navy (16:9 Widescreen)\n\n"
+                        f"🔗 *Open & Edit Google Slides*: {res.get('url')}"
+                    )
+                else:
+                    final_reply = f"⚠️ Could not generate Google Slides presentation: {res.get('error')}"
 
             # 3. Save User Message & Zeyra Response to SQLite Memory
             save_message(chat_id, "user", user_text)

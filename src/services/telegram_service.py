@@ -94,3 +94,17 @@ def get_telegram_file_bytes(file_id: str) -> bytes:
     except Exception as e:
         print(f"[Telegram] Error downloading file {file_id}: {e}")
         return b""
+
+def download_telegram_file(file_id: str, local_filename: str) -> str:
+    """
+    Downloads a document/file from Telegram and saves it locally under downloads/.
+    """
+    file_bytes = get_telegram_file_bytes(file_id)
+    if not file_bytes:
+        return ""
+    
+    os.makedirs("downloads", exist_ok=True)
+    local_path = os.path.join("downloads", local_filename)
+    with open(local_path, "wb") as f:
+        f.write(file_bytes)
+    return local_path

@@ -686,6 +686,11 @@ Return strict JSON:
         from src.services.web_search_service import perform_realtime_web_browsing
         return perform_realtime_web_browsing(query_or_url, history_context=history_context)
 
+    def create_lecture_slides(self, input_content_or_filepath: str) -> dict:
+        """Generates lecture presentation slides and uploads to Google Slides."""
+        from src.services.slides_service import create_google_slides_presentation
+        return create_google_slides_presentation(input_content_or_filepath)
+
 
 def run_morning_brief_agent(send_telegram: bool = True):
     service = PersonalAssistantService()

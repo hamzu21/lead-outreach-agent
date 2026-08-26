@@ -6,8 +6,10 @@ from src.config import TELEGRAM_BOT_TOKEN
 from src.services.telegram_service import (
     send_telegram_message,
     get_telegram_updates,
-    get_telegram_file_bytes
+    get_telegram_file_bytes,
+    download_telegram_file
 )
+from src.services.slides_service import extract_text_from_file
 from src.modules.personal_assistant.personal_assistant import (
     PersonalAssistantService,
     run_morning_brief_agent,
@@ -162,13 +164,34 @@ def run_telegram_bot_loop():
                 text = message.get("text", "").strip()
                 photos = message.get("photo")
                 caption = message.get("caption", "")
+                document = message.get("document")
 
-                print(f"[Zeyra Agent] Message received from Chat ID {chat_id}: text='{text}', photos={bool(photos)}")
+                print(f"[Zeyra Agent] Message received from Chat ID {chat_id}: text='{text}', photos={bool(photos)}, doc={bool(document)}")
 
                 # 1. Handle Photo (Receipt parsing)
                 if photos:
                     best_photo = photos[-1]
                     handle_telegram_photo(chat_id, best_photo["file_id"], caption=caption)
+                    continue
+
+                # 2. Handle Document (PDF, Word, TXT uploads for Slides & Docs)
+                if document:
+                    file_id = document.get("file_id")
+                    file_name = document.get("file_name", "document.pdf")
+                    print(f"[Zeyra Agent] Document received from Chat ID {chat_id}: '{file_name}' (ID: {file_id})")
+                    
+                    send_telegram_message(f"📥 *Received document*: `{file_name}`. Processing and generating presentation slides...", chat_id=chat_id)
+                    local_path = download_telegram_file(file_id, file_name)
+                    
+                    if local_path:
+                        doc_text = extract_text_from_file(local_path)
+                        prompt_text = caption if caption else f"Generate Google Slides presentation for students based on this uploaded document: {file_name}"
+                        full_user_input = f"{prompt_text}\n\nDocument File: {file_name}\nExtracted Content:\n{doc_text[:4000]}"
+                        
+                        reply = agent.process_message(chat_id=chat_id, user_text=full_user_input)
+                        send_telegram_message(reply, chat_id=chat_id)
+                    else:
+                        send_telegram_message("⚠️ Could not download uploaded document from Telegram.", chat_id=chat_id)
                     continue
 
                 # 2. Handle System Commands
