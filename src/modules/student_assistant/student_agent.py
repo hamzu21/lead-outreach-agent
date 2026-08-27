@@ -31,24 +31,39 @@ def is_student_email(sender_email: str, subject: str = "", body: str = "") -> bo
 
 def resolve_requested_course_file(query_text: str) -> str:
     """
-    Finds requested course slides, assignment PDFs, or syllabus files from local storage or Google Drive.
+    Finds requested course slides, lab manuals, assignment PDFs, or syllabus files from 
+    Zeyra's DB indexed files, course_materials/ folder, or local storage.
     """
+    from src.services.course_knowledge_service import find_indexed_file_for_query
+    
+    # 1. Search SQLite DB indexed physical files first
+    db_file = find_indexed_file_for_query(query_text)
+    if db_file and os.path.exists(db_file):
+        print(f"[StudentAssistant] Resolved physical file from DB: {db_file}")
+        return db_file
+
     query_lower = query_text.lower()
     
     # Check if student asked for file attachment
-    if not any(kw in query_lower for kw in ["slide", "slides", "pdf", "docx", "file", "attachment", "notes", "material", "syllabus", "presentation"]):
+    if not any(kw in query_lower for kw in ["slide", "slides", "manual", "lab", "pdf", "docx", "pptx", "file", "attachment", "notes", "material", "syllabus", "presentation"]):
         return None
 
-    # 1. Search local directory files (.pptx, .pdf, .docx)
-    all_files = glob.glob("*.pptx") + glob.glob("*.pdf") + glob.glob("*.docx") + glob.glob("assets/*") + glob.glob("downloads/*")
+    # 2. Search local directory files (.pptx, .pdf, .docx, .zip)
+    all_files = (
+        glob.glob("course_materials/*") +
+        glob.glob("*.pptx") + glob.glob("*.pdf") + glob.glob("*.docx") + glob.glob("*.zip") +
+        glob.glob("assets/*") + glob.glob("downloads/*")
+    )
     
+    words = [w for w in re.split(r'[\s_\-\.]+', query_lower) if len(w) > 2]
+
     for f_path in all_files:
+        if not os.path.isfile(f_path):
+            continue
         basename_lower = os.path.basename(f_path).lower()
-        # Match keywords e.g. 'lecture', 'slides', 'react', 'ai', 'syllabus'
-        words = [w for w in re.split(r'[\s_\-\.]+', query_lower) if len(w) > 3]
         for w in words:
             if w in basename_lower:
-                print(f"[StudentAssistant] Matched requested file for '{w}': {f_path}")
+                print(f"[StudentAssistant] Matched physical file for '{w}': {f_path}")
                 return os.path.abspath(f_path)
 
     return None

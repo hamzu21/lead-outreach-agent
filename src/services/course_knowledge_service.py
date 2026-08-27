@@ -108,3 +108,33 @@ def query_course_context(query_text: str, course_code: str = None) -> str:
         context_str += f"\nTitle: {title}\nContent:\n{text[:3000]}\n"
     
     return context_str
+
+def find_indexed_file_for_query(query_text: str) -> str:
+    """
+    Searches stored course_knowledge in SQLite DB for matching title/content keywords,
+    and returns the exact physical file path on disk if available.
+    """
+    init_course_db()
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    cursor = conn.cursor()
+    cursor.execute("SELECT title, file_path FROM course_knowledge WHERE file_path != '' ORDER BY id DESC")
+    rows = cursor.fetchall()
+    conn.close()
+
+    query_lower = query_text.lower()
+    import re
+    words = [w for w in re.split(r'[\s_\-\.]+', query_lower) if len(w) > 2]
+
+    # 1. Match exact title / file path keywords from database
+    for title, f_path in rows:
+        if not f_path or not os.path.exists(f_path):
+            continue
+        title_lower = title.lower()
+        f_lower = os.path.basename(f_path).lower()
+
+        # Check if any keyword matches
+        if any(w in title_lower or w in f_lower for w in words):
+            print(f"[CourseKnowledge] Found DB indexed physical file for query '{query_text}': {f_path}")
+            return os.path.abspath(f_path)
+
+    return None

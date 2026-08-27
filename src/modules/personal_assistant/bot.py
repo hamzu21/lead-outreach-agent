@@ -173,7 +173,7 @@ def run_telegram_bot_loop():
                     handle_telegram_photo(chat_id, best_photo["file_id"], caption=caption)
                     continue
 
-                # 2. Handle Document (PDF, Word, TXT uploads for Slides & Docs)
+                # 2. Handle Document (PDF, Word, PPTX, TXT uploads for Slides & Course Knowledge)
                 if document:
                     file_id = document.get("file_id")
                     file_name = document.get("file_name", "document.pdf")
@@ -182,30 +182,31 @@ def run_telegram_bot_loop():
                     local_path = download_telegram_file(file_id, file_name)
                     
                     if local_path:
-                        if caption:
-                            # User provided specific guidelines in caption (e.g. "Chapter 1 ki slides banao")
-                            send_telegram_message(f"📥 *Received document*: `{file_name}` with guidelines: _{caption}_\n\nGenerating High-Contrast White Presentation Slides...", chat_id=chat_id)
+                        import shutil
+                        cm_dir = "course_materials"
+                        os.makedirs(cm_dir, exist_ok=True)
+                        cm_path = os.path.join(cm_dir, file_name)
+                        shutil.copy2(local_path, cm_path)
+
+                        from src.services.course_knowledge_service import index_course_material
+                        c_title = caption or file_name
+                        index_course_material(course_code="COURSE", title=c_title, file_path_or_text=cm_path)
+
+                        if caption and any(w in caption.lower() for w in ["slide", "presentation", "powerpoint"]):
+                            send_telegram_message(f"📥 *Received document*: `{file_name}`\n\nIndexed into Zeyra's Brain (`{cm_path}`)!\nGenerating High-Contrast White Presentation Slides...", chat_id=chat_id)
                             doc_text = extract_text_from_file(local_path)
                             full_user_input = f"User Guidelines for Document: {caption}\n\nDocument File: {file_name}\nExtracted Content:\n{doc_text[:6000]}"
                             reply = agent.process_message(chat_id=chat_id, user_text=full_user_input)
                             send_telegram_message(reply, chat_id=chat_id)
                         else:
-                            # No caption provided -> Analyze topics and ask user for guidelines
-                            from src.services.slides_service import analyze_document_topics
-                            analysis = analyze_document_topics(local_path)
-                            doc_title = analysis.get("document_title", file_name)
-                            topics = analysis.get("chapters_or_topics", [])
-                            
-                            topic_list_str = "\n".join([f"• *{t}*" for t in topics]) if topics else "• *General Overview & Chapters*"
-                            
-                            guidelines_msg = (
-                                f"📥 *Document Received*: `{file_name}`\n\n"
-                                f"Main ne aap ke document (_{doc_title}_) me yeh chapters/topics analyze kiye hain:\n"
-                                f"{topic_list_str}\n\n"
-                                f"👉 *Guidelines Needed*: Aap kis specific chapter ya topic ki slides banana chahte hain?\n"
-                                f"_(Maslan bolein: 'Chapter 1 ki slides banao', 'Topic 2 ki presentation banao', ya 'Poori book ki slides banao')_"
+                            indexed_msg = (
+                                f"📚 *Course Material Saved to Zeyra's Brain!* 🧠\n\n"
+                                f"• *File Name*: `{file_name}`\n"
+                                f"• *Saved Path*: `{cm_path}`\n"
+                                f"• *Title/Notes*: _{c_title}_\n\n"
+                                f"💡 *Jab bhi koi student yeh slides/lab manual email par maange ga, main auto-attach kar ke real `{file_name}` file bhej doon gi!*"
                             )
-                            send_telegram_message(guidelines_msg, chat_id=chat_id)
+                            send_telegram_message(indexed_msg, chat_id=chat_id)
                     else:
                         send_telegram_message("⚠️ Could not download uploaded document from Telegram.", chat_id=chat_id)
                     continue
