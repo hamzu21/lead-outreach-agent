@@ -9,6 +9,7 @@ from src.modules.personal_assistant import (
     run_inbox_zero_agent
 )
 from src.modules.academic_outreach import run_academic_outreach_campaign
+from src.modules.personal_assistant.bot import run_telegram_bot_loop
 
 def main():
     parser = argparse.ArgumentParser(description="Multi-Agent AI Executive Assistant")

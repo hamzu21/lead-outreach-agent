@@ -143,8 +143,7 @@ def run_telegram_bot_loop():
         return
 
     start_health_server()
-    start_reminder_scheduler_thread()
-    print("🤖 Starting Zeyra Conversational AI Agent on Telegram...")
+    print("[Zeyra Agent] Starting Zeyra Conversational AI Agent on Telegram...")
     print("Send any conversational message or commands to your bot in Telegram.")
     
     offset = 0
