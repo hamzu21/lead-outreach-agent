@@ -4,6 +4,12 @@ from src.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
 TELEGRAM_API_BASE = os.getenv("TELEGRAM_API_BASE", "https://api.telegram.org").rstrip("/")
 
+PROXIES = None
+p_env = os.getenv("TELEGRAM_PROXY") or os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY")
+if p_env:
+    PROXIES = {"http": p_env, "https": p_env}
+    print(f"[TelegramService] Using proxy: {p_env}")
+
 from src.services.formatting_cleaner import clean_text_for_telegram
 
 def send_telegram_message(text: str, chat_id: str = None, parse_mode: str = "Markdown") -> bool:
@@ -22,7 +28,7 @@ def send_telegram_message(text: str, chat_id: str = None, parse_mode: str = "Mar
 
     # 1. Attempt with Cleaned Markdown
     try:
-        response = requests.post(url, json={"chat_id": target_chat, "text": cleaned_text, "parse_mode": parse_mode}, timeout=15)
+        response = requests.post(url, json={"chat_id": target_chat, "text": cleaned_text, "parse_mode": parse_mode}, timeout=15, proxies=PROXIES)
         res_data = response.json()
         if res_data.get("ok"):
             return True
@@ -31,7 +37,7 @@ def send_telegram_message(text: str, chat_id: str = None, parse_mode: str = "Mar
 
     # 2. Attempt with Plain Text (Original uncleaned text, no parse mode)
     try:
-        response = requests.post(url, json={"chat_id": target_chat, "text": text}, timeout=15)
+        response = requests.post(url, json={"chat_id": target_chat, "text": text}, timeout=15, proxies=PROXIES)
         res_data = response.json()
         if res_data.get("ok"):
             return True
@@ -41,7 +47,7 @@ def send_telegram_message(text: str, chat_id: str = None, parse_mode: str = "Mar
     # 3. Fallback: Attempt with Stripped Safe Text
     try:
         raw_safe_text = text.replace("*", "").replace("_", "").replace("`", "").replace("[", "").replace("]", "")
-        response = requests.post(url, json={"chat_id": target_chat, "text": raw_safe_text}, timeout=15)
+        response = requests.post(url, json={"chat_id": target_chat, "text": raw_safe_text}, timeout=15, proxies=PROXIES)
         res_data = response.json()
         return bool(res_data.get("ok"))
     except Exception as e3:
@@ -78,7 +84,7 @@ def get_telegram_updates(offset: int = 0, timeout: int = 10) -> list:
     params = {"offset": offset, "timeout": timeout}
 
     try:
-        response = requests.get(url, params=params, timeout=timeout + 15)
+        response = requests.get(url, params=params, timeout=timeout + 15, proxies=PROXIES)
         res_data = response.json()
         if res_data.get("ok"):
             return res_data.get("result", [])
