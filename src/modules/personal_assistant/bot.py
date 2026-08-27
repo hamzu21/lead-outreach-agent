@@ -237,10 +237,16 @@ def run_telegram_bot_loop():
                         try:
                             from src.services.telegram_service import send_telegram_chat_action
                             send_telegram_chat_action(c_id, action="typing")
+                            print(f"[Zeyra Agent] Processing message from {c_id}: '{u_text}'")
                             reply = agent.process_message(chat_id=c_id, user_text=u_text)
-                            send_telegram_message(reply, chat_id=c_id)
+                            print(f"[Zeyra Agent] Sending reply to {c_id} ({len(reply)} chars)")
+                            sent = send_telegram_message(reply, chat_id=c_id)
+                            if not sent:
+                                print(f"[Zeyra Agent] Warning: send_telegram_message returned False for {c_id}")
                         except Exception as me:
                             print(f"[Zeyra Agent] Error processing message from {c_id}: {me}")
+                            import traceback
+                            traceback.print_exc()
                             send_telegram_message(f"⚠️ Apologies Hamza, an error occurred while processing: {me}", chat_id=c_id)
 
                     threading.Thread(target=process_message_async, args=(chat_id, text), daemon=True).start()

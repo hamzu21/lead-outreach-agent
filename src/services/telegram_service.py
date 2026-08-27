@@ -18,29 +18,34 @@ def send_telegram_message(text: str, chat_id: str = None, parse_mode: str = "Mar
         return False
 
     cleaned_text = clean_text_for_telegram(text)
-
     url = f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage"
-    payload = {
-        "chat_id": target_chat,
-        "text": cleaned_text,
-        "parse_mode": parse_mode
-    }
 
+    # 1. Attempt with Cleaned Markdown
     try:
-        response = requests.post(url, json=payload, timeout=15)
+        response = requests.post(url, json={"chat_id": target_chat, "text": cleaned_text, "parse_mode": parse_mode}, timeout=15)
         res_data = response.json()
-        if not res_data.get("ok"):
-            # Fallback to plain text if markdown formatting failed
-            if parse_mode:
-                payload["parse_mode"] = ""
-                response = requests.post(url, json=payload, timeout=15)
-                res_data = response.json()
-            if not res_data.get("ok"):
-                print(f"[Telegram] Failed to send message: {res_data.get('description')}")
-                return False
-        return True
-    except Exception as e:
-        print(f"[Telegram] Exception sending message: {e}")
+        if res_data.get("ok"):
+            return True
+    except Exception as e1:
+        print(f"[Telegram] Notice attempt 1 (Markdown) failed: {e1}")
+
+    # 2. Attempt with Plain Text (Original uncleaned text, no parse mode)
+    try:
+        response = requests.post(url, json={"chat_id": target_chat, "text": text}, timeout=15)
+        res_data = response.json()
+        if res_data.get("ok"):
+            return True
+    except Exception as e2:
+        print(f"[Telegram] Notice attempt 2 (Plain) failed: {e2}")
+
+    # 3. Fallback: Attempt with Stripped Safe Text
+    try:
+        raw_safe_text = text.replace("*", "").replace("_", "").replace("`", "").replace("[", "").replace("]", "")
+        response = requests.post(url, json={"chat_id": target_chat, "text": raw_safe_text}, timeout=15)
+        res_data = response.json()
+        return bool(res_data.get("ok"))
+    except Exception as e3:
+        print(f"[Telegram] Exception sending message: {e3}")
         return False
 
 def send_telegram_chat_action(chat_id: str = None, action: str = "typing") -> bool:
