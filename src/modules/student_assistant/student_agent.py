@@ -121,10 +121,31 @@ Return JSON:
             "attachment_path": attachment_path
         }
 
-def process_incoming_student_queries(gmail_service=None) -> dict:
+SENSITIVE_KEYWORDS = [
+    "grade", "marks", "re-check", "recheck", "re-eval", "reeval", "dispute", "fail",
+    "medical", "sick", "hospital", "leave", "absence", "missed exam", "missed quiz",
+    "cheating", "plagiarism", "extenuating", "emergency"
+]
+
+def is_sensitive_student_query(subject: str = "", body: str = "") -> dict:
+    """
+    Checks if a student query involves sensitive academic matters (grades, medical leave, missed exams)
+    which require human review and approval.
+    """
+    content = f"{subject} {body}".lower()
+    found = [kw for kw in SENSITIVE_KEYWORDS if kw in content]
+    if found:
+        return {
+            "is_sensitive": True,
+            "reason": f"Matched sensitive topic: {', '.join(found)}"
+        }
+    return {"is_sensitive": False, "reason": ""}
+
+def process_incoming_student_queries(gmail_service=None, send_telegram_alerts: bool = True) -> dict:
     """
     Scans unread inbox emails, detects student inquiries, generates AI responses,
-    attaches requested course slides/files, and dispatches automated replies.
+    attaches requested course slides/files, auto-replies for routine queries,
+    and creates Gmail Drafts + Telegram Alerts for sensitive queries.
     """
     if not gmail_service:
         sheets, gmail_service, docs, drive = get_google_services()
@@ -142,10 +163,11 @@ def process_incoming_student_queries(gmail_service=None) -> dict:
         messages = res.get("messages", [])
 
         if not messages:
-            return {"success": True, "replied_count": 0, "message": "No unread student emails found in inbox."}
+            return {"success": True, "replied_count": 0, "drafted_count": 0, "message": "No unread student emails found in inbox."}
 
         replied_count = 0
-        replied_details = []
+        drafted_count = 0
+        details = []
 
         for m_meta in messages:
             m_id = m_meta["id"]
@@ -175,18 +197,59 @@ def process_incoming_student_queries(gmail_service=None) -> dict:
                     query_body=snippet
                 )
 
-                # Send Email Reply via Gmail API (with optional attachment)
+                sens = is_sensitive_student_query(subject=subject_str, body=snippet)
                 attach_file = reply_data.get("attachment_path")
-                res_send = send_gmail_message(
-                    gmail_service=gmail_service,
-                    to_email=sender_email,
-                    subject=reply_data["subject"],
-                    body_text=reply_data["body"],
-                    attachment_path=attach_file
-                )
 
-                print(f" -> Sent automated reply to student {sender_email} (Msg ID: {res_send})")
-                
+                if sens["is_sensitive"]:
+                    # SENSITIVE QUERY -> Save to Gmail Drafts & send Telegram Alert
+                    from src.services.gmail_service import create_gmail_draft
+                    draft_id = create_gmail_draft(
+                        gmail_service=gmail_service,
+                        to_email=sender_email,
+                        subject=reply_data["subject"],
+                        body_text=reply_data["body"],
+                        attachment_path=attach_file
+                    )
+                    drafted_count += 1
+                    print(f" -> Sensitive query from {sender_email}: Saved Draft ID #{draft_id}")
+
+                    if send_telegram_alerts:
+                        from src.services.telegram_service import send_telegram_message
+                        alert_msg = (
+                            f"🚨 *SENSITIVE STUDENT QUERY ALERT* 🚨\n\n"
+                            f"• *Student*: `{sender_email}`\n"
+                            f"• *Subject*: _{subject_str}_\n"
+                            f"• *Reason*: `{sens['reason']}`\n"
+                            f"• *Query*: \"{snippet[:160]}...\"\n\n"
+                            f"💡 *Action Taken*: Prepared Gmail Draft (ID #{draft_id}). Please review in Gmail before dispatching."
+                        )
+                        send_telegram_message(alert_msg)
+
+                    details.append({
+                        "student_email": sender_email,
+                        "subject": subject_str,
+                        "status": "Saved to Drafts (Sensitive)",
+                        "attached_file": os.path.basename(attach_file) if attach_file else "None"
+                    })
+                else:
+                    # ROUTINE QUERY -> Auto-reply via Gmail API
+                    res_send = send_gmail_message(
+                        gmail_service=gmail_service,
+                        to_email=sender_email,
+                        subject=reply_data["subject"],
+                        body_text=reply_data["body"],
+                        attachment_path=attach_file
+                    )
+                    replied_count += 1
+                    print(f" -> Sent automated reply to student {sender_email} (Msg ID: {res_send})")
+
+                    details.append({
+                        "student_email": sender_email,
+                        "subject": subject_str,
+                        "status": "Auto-Replied",
+                        "attached_file": os.path.basename(attach_file) if attach_file else "None"
+                    })
+
                 # Mark original message as read
                 try:
                     gmail_service.users().messages().batchModify(
@@ -196,17 +259,11 @@ def process_incoming_student_queries(gmail_service=None) -> dict:
                 except Exception:
                     pass
 
-                replied_count += 1
-                replied_details.append({
-                    "student_email": sender_email,
-                    "subject": subject_str,
-                    "attached_file": os.path.basename(attach_file) if attach_file else "None"
-                })
-
         return {
             "success": True,
             "replied_count": replied_count,
-            "details": replied_details
+            "drafted_count": drafted_count,
+            "details": details
         }
 
     except Exception as e:

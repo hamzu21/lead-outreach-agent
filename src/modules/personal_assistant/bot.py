@@ -131,6 +131,24 @@ def start_reminder_scheduler_thread():
     t = threading.Thread(target=reminder_loop, daemon=True)
     t.start()
 
+def start_student_assistant_polling_thread():
+    """
+    Background daemon thread that scans unread student queries every 60 seconds
+    and dispatches automated replies / Telegram alerts.
+    """
+    def student_loop():
+        print("[Student Assistant Scheduler] Background 24/7 scheduler active (polling every 60s)...")
+        from src.modules.student_assistant import process_incoming_student_queries
+        while True:
+            try:
+                process_incoming_student_queries(send_telegram_alerts=True)
+            except Exception as e:
+                print(f"[Student Assistant Scheduler] Notice: {e}")
+            time.sleep(60)
+
+    t = threading.Thread(target=student_loop, daemon=True)
+    t.start()
+
 from src.modules.personal_assistant.agent_engine import ConversationalAgent
 from src.services.memory_db import clear_history
 
@@ -143,6 +161,8 @@ def run_telegram_bot_loop():
         return
 
     start_health_server()
+    start_reminder_scheduler_thread()
+    start_student_assistant_polling_thread()
     print("[Zeyra Agent] Starting Zeyra Conversational AI Agent on Telegram...")
     print("Send any conversational message or commands to your bot in Telegram.")
     
