@@ -17,8 +17,8 @@ def main():
         "--mode",
         type=str,
         default="outreach",
-        choices=["outreach", "jobs", "academic", "professor", "morning_brief", "expense_tracker", "inbox_zero", "bot"],
-        help="Agent mode: 'outreach', 'jobs', 'academic', 'professor', 'morning_brief', 'expense_tracker', 'inbox_zero', 'bot'"
+        choices=["outreach", "jobs", "academic", "professor", "student", "morning_brief", "expense_tracker", "inbox_zero", "bot"],
+        help="Agent mode: 'outreach', 'jobs', 'academic', 'professor', 'student', 'morning_brief', 'expense_tracker', 'inbox_zero', 'bot'"
     )
     parser.add_argument(
         "--limit",
@@ -76,6 +76,16 @@ def main():
             print(f"[SUCCESS] Academic Outreach Drafts Created! Drafts Prepared: {res.get('drafts_created')} (Saved to Gmail Drafts for review).")
         except Exception as e:
             print(f"\n[ERROR] Academic Outreach Agent failed: {e}", file=sys.stderr)
+            traceback.print_exc()
+            sys.exit(1)
+    elif args.mode == "student":
+        print("Starting Student Academic Assistant Agent (KFUEIT Course Queries & Slide Attachments)...")
+        try:
+            from src.modules.student_assistant import process_incoming_student_queries
+            res = process_incoming_student_queries()
+            print(f"[SUCCESS] Student Queries Processed! Replied: {res.get('replied_count')}")
+        except Exception as e:
+            print(f"\n[ERROR] Student Assistant Agent failed: {e}", file=sys.stderr)
             traceback.print_exc()
             sys.exit(1)
     elif args.mode == "bot":

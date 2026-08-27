@@ -831,6 +831,16 @@ Return strict JSON:
         from src.modules.academic_outreach import scrape_university_faculty_page
         return scrape_university_faculty_page(url, target_fields=fields)
 
+    def run_student_assistant(self) -> dict:
+        """Scans unread student queries, generates AI responses, attaches requested files, and dispatches automated replies."""
+        from src.modules.student_assistant import process_incoming_student_queries
+        return process_incoming_student_queries(self.gmail_service)
+
+    def add_course_material(self, course_code: str, title: str, file_path_or_text: str) -> dict:
+        """Indexes course syllabus, lecture notes, or slides into Zeyra's brain for student query answering."""
+        from src.services.course_knowledge_service import index_course_material
+        return index_course_material(course_code, title, file_path_or_text)
+
 
 def run_morning_brief_agent(send_telegram: bool = True):
     service = PersonalAssistantService()

@@ -110,10 +110,12 @@ CRITICAL RULE FOR EMAIL DELETION & CHECKING:
 1. If user asks to delete, trash, or remove emails (e.g. 'duolingo ki delete krdo', 'delete krdo', 'hata do'), set "intent": "TRASH_EMAIL" and extract keyword in "to_email".
 2. If user asks to check, verify, or count remaining emails (e.g. 'or bhi hain bayt ki emails?', 'check kro emails hain ya nahi', 'kitni emails baqi hain'), set "intent": "CHECK_EMAILS" and extract keyword (e.g. 'bayt', 'duolingo') in "to_email".
 3. If user provides a university faculty URL (e.g. 'https://www.kaust.edu.sa/en/study/faculty') and asks to extract/find professors in AI, Cyber Security, or CS, set "intent": "SCRAPE_FACULTY" and extract URL in "audit_url".
+4. If user asks to reply to student queries, check student emails (@kfueit.edu.pk), or process student inquiries, set "intent": "STUDENT_ASSISTANT".
+5. If user provides course syllabus, lecture details, or course notes to store in Zeyra's brain, set "intent": "INDEX_COURSE" and extract title in "doc_title".
 
 Return JSON with format:
 {{
-  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "REPLY_EMAIL" | "TRASH_EMAIL" | "CHECK_EMAILS" | "JOB_AGENT" | "ACADEMIC_OUTREACH" | "SCRAPE_FACULTY" | "CREATE_DOC" | "CREATE_SHEET" | "MANAGE_WORKSPACE_FILE" | "LIST_WORKSPACE_FILES" | "CREATE_INVOICE" | "AUDIT_WEBSITE" | "TECH_RADAR" | "SET_REMINDER" | "LIST_REMINDERS" | "CREATE_SLIDES" | "CLEAR_SHEET_DATA" | "GENERAL_CONVERSATION",
+  "intent": "MORNING_BRIEF" | "EXPENSE_LOG" | "INBOX_DIGEST" | "DRAFTS_DIGEST" | "SEND_DRAFT" | "SEND_EMAIL" | "REPLY_EMAIL" | "TRASH_EMAIL" | "CHECK_EMAILS" | "JOB_AGENT" | "ACADEMIC_OUTREACH" | "SCRAPE_FACULTY" | "STUDENT_ASSISTANT" | "INDEX_COURSE" | "CREATE_DOC" | "CREATE_SHEET" | "MANAGE_WORKSPACE_FILE" | "LIST_WORKSPACE_FILES" | "CREATE_INVOICE" | "AUDIT_WEBSITE" | "TECH_RADAR" | "SET_REMINDER" | "LIST_REMINDERS" | "CREATE_SLIDES" | "CLEAR_SHEET_DATA" | "GENERAL_CONVERSATION",
   "expense_details": "Extracted expense text if intent is EXPENSE_LOG, else empty string",
   "parsed_expense": {{
     "amount": 500.0,
@@ -127,8 +129,8 @@ Return JSON with format:
   "email_subject": "Professional email subject line if intent is SEND_EMAIL or REPLY_EMAIL, else empty string",
   "email_body": "Well-formatted professional email body text if intent is SEND_EMAIL, else empty string",
   "reply_instructions": "Extracted user reply instructions if intent is REPLY_EMAIL, else empty string",
-  "doc_title": "Extracted document or spreadsheet title if intent is CREATE_DOC, CREATE_SHEET, MANAGE_WORKSPACE_FILE, or CLEAR_SHEET_DATA, else empty string",
-  "doc_instructions": "Extracted instructions or content details if intent is CREATE_DOC, CREATE_SHEET, or SCRAPE_FACULTY (e.g. 'AI, Cyber Security'), else empty string",
+  "doc_title": "Extracted document, spreadsheet, or course title if intent is CREATE_DOC, CREATE_SHEET, MANAGE_WORKSPACE_FILE, INDEX_COURSE, or CLEAR_SHEET_DATA, else empty string",
+  "doc_instructions": "Extracted instructions or content details if intent is CREATE_DOC, CREATE_SHEET, SCRAPE_FACULTY, or INDEX_COURSE, else empty string",
   "starting_balance": "Extracted numerical starting bank balance if user specifies starting balance (e.g. 14100), else empty string",
   "client_name": "Extracted client name if intent is CREATE_INVOICE, else empty string",
   "invoice_amount": "Extracted numerical amount if intent is CREATE_INVOICE, else empty string",
@@ -176,13 +178,16 @@ Return JSON with format:
 
             final_reply = base_response
 
-            # 1.4 Safety Net Override for Email Deletion vs Email Check vs Faculty Scraping Intent
+            # 1.4 Safety Net Override for Email Deletion vs Email Check vs Faculty Scraping vs Student Assistant Intent
             del_words = ["delete", "trash", "hata", "remove", "khatam"]
             check_words = ["check", "dekh", "kitni", "or bhi", "aur bhi", "baqi", "remains", "bhi hain", "kya hain"]
             mail_words = ["email", "emails", "mail", "inbox", "duolingo", "freelancer", "alibaba", "linkedin", "bayt"]
             lower_u = user_text.lower()
 
-            if "http" in lower_u and any(w in lower_u for w in ["faculty", "professor", "professors", "kaust", "data nikaal", "data nikal", "list", "extract"]):
+            if any(w in lower_u for w in ["student", "students", "kfueit", "course email", "student query", "student reply"]):
+                print(f"[ConversationalAgent] Safety Override: Forcing STUDENT_ASSISTANT intent for: {user_text}")
+                intent = "STUDENT_ASSISTANT"
+            elif "http" in lower_u and any(w in lower_u for w in ["faculty", "professor", "professors", "kaust", "data nikaal", "data nikal", "list", "extract"]):
                 print(f"[ConversationalAgent] Safety Override: Forcing SCRAPE_FACULTY intent for: {user_text}")
                 intent = "SCRAPE_FACULTY"
             elif any(m in lower_u for m in mail_words):
@@ -196,6 +201,7 @@ Return JSON with format:
 
             # 1.5 Send instant preliminary status update for time-taking tasks to eliminate user waiting perception
             status_messages = {
+                "STUDENT_ASSISTANT": "🎓 *Ji Hamza, main unread student emails scan karke custom AI replies aur requested course slides attach kar ke dispatch kar rahi hoon...* ⏳",
                 "SCRAPE_FACULTY": "🎓 *Ji Hamza, main university website scan karke professors ka data extract aur Google Sheet generate kar rahi hoon...* ⏳",
                 "ACADEMIC_OUTREACH": "🎓 *Ji Hamza, main Academic Professor Outreach campaign start kar rahi hoon (Semantic Scholar paper research + CV attachment)...* ⏳",
                 "CHECK_EMAILS": "🔍 *Ji Hamza, main live Gmail scan karke count verify kar rahi hoon...* ⏳",
@@ -502,6 +508,39 @@ Return JSON with format:
                         final_reply = f"⚠️ Could not extract faculty data: {res.get('error')}"
                 else:
                     final_reply = "⚠️ Please provide a valid university faculty page URL (e.g. https://www.kaust.edu.sa/en/study/faculty)."
+
+            elif intent == "STUDENT_ASSISTANT":
+                res = self.pa_service.run_student_assistant()
+                if res.get("success"):
+                    cnt = res.get("replied_count", 0)
+                    if cnt > 0:
+                        details_str = "\n".join([f"• *{d['student_email']}* | Subject: _{d['subject']}_ (Attached: `{d['attached_file']}`)" for d in res.get("details", [])])
+                        final_reply = (
+                            f"🎓 *Student Academic Queries Processed & Replied!* 📚\n\n"
+                            f"• *Student Emails Replied*: `{cnt}`\n"
+                            f"• *Domain Target*: `@kfueit.edu.pk` & Student Queries\n"
+                            f"• *Brain Knowledge*: Course Syllabus & Lecture Slides Used\n\n"
+                            f"{details_str}\n\n"
+                            f"💡 *All student replies sent automatically via Gmail API.*"
+                        )
+                    else:
+                        final_reply = "✅ *Checked Gmail Inbox*: Clear! No unread student inquiries found at the moment."
+                else:
+                    final_reply = f"⚠️ Could not process student queries: {res.get('error')}"
+
+            elif intent == "INDEX_COURSE":
+                res = self.pa_service.add_course_material(
+                    course_code=doc_title_val or "CS101",
+                    title=doc_title_val or "Course Material",
+                    file_path_or_text=doc_inst_val or user_text
+                )
+                final_reply = (
+                    f"🧠 *Course Knowledge Saved in Zeyra's Brain!* 📚\n\n"
+                    f"• *Course Code*: `{res.get('course_code')}`\n"
+                    f"• *Material Title*: `{res.get('title')}`\n"
+                    f"• *Indexed Content Size*: `{res.get('char_count')}` chars\n\n"
+                    f"💡 *Main ab is course ke mutaliq tamaam student queries ka accurate jwaab dene ke liye ready hoon!*"
+                )
 
             elif intent == "SET_REMINDER":
                 rem_text = reminder_text_val or user_text
