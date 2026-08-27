@@ -133,18 +133,19 @@ def start_reminder_scheduler_thread():
 
 def start_student_assistant_polling_thread():
     """
-    Background daemon thread that scans unread student queries every 60 seconds
+    Background daemon thread that scans unread student queries every N seconds
     and dispatches automated replies / Telegram alerts.
     """
+    poll_interval = int(os.getenv("STUDENT_POLLING_INTERVAL", "300"))
     def student_loop():
-        print("[Student Assistant Scheduler] Background 24/7 scheduler active (polling every 60s)...")
+        print(f"[Student Assistant Scheduler] Background scheduler active (polling every {poll_interval}s)...")
         from src.modules.student_assistant import process_incoming_student_queries
         while True:
             try:
                 process_incoming_student_queries(send_telegram_alerts=True)
             except Exception as e:
                 print(f"[Student Assistant Scheduler] Notice: {e}")
-            time.sleep(60)
+            time.sleep(poll_interval)
 
     t = threading.Thread(target=student_loop, daemon=True)
     t.start()
